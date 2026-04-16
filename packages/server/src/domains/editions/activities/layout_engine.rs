@@ -289,6 +289,8 @@ fn place_posts(
         light_count,
         templates,
         target_content_weight,
+        &posts,
+        post_templates,
     );
 
     // Reorder: specialty templates fill BEFORE generic ones so they get
@@ -369,20 +371,25 @@ fn fill_row(
     // Slot index 0 is always the anchor (widest/heaviest cell).
     let slots = &template_with_slots.slots;
 
-    // Identify if this is a stacked layout (lead-stack, pair-stack)
-    let is_stacked = matches!(
+    // Multi-cell layouts should keep side-by-side cells visually aligned.
+    // In any layout where cells sit next to each other (lead-stack, pair-stack,
+    // trio, pair, classifieds), non-anchor cells height-balance against the
+    // anchor cell so one column doesn't tower over its siblings.
+    let is_multi_cell = matches!(
         template.layout_variant.as_str(),
-        "lead-stack" | "pair-stack"
+        "lead-stack" | "pair-stack" | "trio" | "pair" | "classifieds"
     );
 
     for slot_def in slots {
         let is_anchor = slot_def.slot_index == 0;
 
-        // For stacked layouts, the non-anchor slots should height-balance
-        let target_height = if is_stacked && !is_anchor {
+        // For multi-cell layouts, non-anchor cells target the anchor's height
+        // when they stack (count > 1). A count=1 cell can't be balanced —
+        // whatever single post fits goes in.
+        let target_height = if is_multi_cell && !is_anchor && slot_def.count > 1 {
             anchor_height
         } else {
-            0 // No height target for anchor or non-stacked layouts
+            0
         };
 
         let filled = fill_slot_group(
@@ -419,7 +426,14 @@ fn fill_row(
                     anchor_type = Some(post.post_type.clone());
                 }
                 anchor_height = filled.iter()
-                    .map(|s| height_map.get(&s.post_template_slug).copied().unwrap_or(4))
+                    .map(|s| {
+                        let post_type = posts
+                            .iter()
+                            .find(|p| p.id == s.post_id)
+                            .map(|p| p.post_type.as_str())
+                            .unwrap_or("");
+                        effective_height(&s.post_template_slug, post_type, height_map)
+                    })
                     .sum();
             }
         }
@@ -545,7 +559,7 @@ fn fill_slot_group(
             }
         }
 
-        let h = height_map.get(&pt_slug).copied().unwrap_or(4);
+        let h = effective_height(&pt_slug, &posts[*i].post_type, height_map);
 
         // Height-balance check for stacked slots
         if target_height > 0 && !filled.is_empty() {
@@ -599,6 +613,33 @@ fn resolve_post_template(
 // ---------------------------------------------------------------------------
 
 /// Slot-weight score for a single "heavy"/"medium"/"light" slot.
+/// Effective rendered height for a (post_template, post_type) pairing.
+///
+/// The stored `height_units` is a single scalar per template, but several
+/// templates render substantially different components depending on the
+/// post's type. Reference posts rendered via `ledger` or `bulletin` show a
+/// full items list (LedgerReference, BulletinReference) that's ~2× the
+/// height of the same template rendering an update or exchange. Without
+/// this adjustment, stacking two reference posts in a narrow cell produces
+/// a visually unbalanced column that doesn't match its siblings.
+///
+/// Returns the template's base height plus a known-outlier bonus.
+fn effective_height(
+    template_slug: &str,
+    post_type: &str,
+    height_map: &HashMap<String, i32>,
+) -> i32 {
+    let base = height_map.get(template_slug).copied().unwrap_or(4);
+    let bonus = match (template_slug, post_type) {
+        // Reference posts render an items list; in the compact ledger/bulletin
+        // templates this roughly doubles the rendered height.
+        ("ledger", "reference") => 3,
+        ("bulletin", "reference") => 3,
+        _ => 0,
+    };
+    base + bonus
+}
+
 fn weight_score(w: &str) -> i32 {
     match w {
         "heavy" => 3,
@@ -635,9 +676,23 @@ fn select_row_templates<'a>(
     mut light: usize,
     templates: &'a [RowTemplateWithSlots],
     target_content_weight: i32,
+    posts: &[LayoutPost],
+    post_templates: &[PostTemplateConfig],
 ) -> Vec<(&'a RowTemplateConfig, &'a RowTemplateWithSlots)> {
     let mut selected: Vec<(&RowTemplateConfig, &RowTemplateWithSlots)> = Vec::new();
     let mut variant_counts: HashMap<&str, usize> = HashMap::new();
+
+    // Track per-(weight,type) counts of unconsumed posts so we can reject
+    // templates whose slots can't actually be filled. Without this, the engine
+    // picks templates whose slot weights match the pool but whose `accepts`
+    // arrays don't — the row later fails to fill, but the raw weight counts
+    // have already been deducted, starving Phase 3.
+    let mut pool_by_type: HashMap<(String, String), usize> = HashMap::new();
+    for p in posts {
+        *pool_by_type
+            .entry((p.weight.clone(), p.post_type.clone()))
+            .or_insert(0) += 1;
+    }
 
     // Weight budgets per phase. These add up to 100% of target; the 1.3× soft
     // ceiling is applied over the total accumulated weight (not per-phase).
@@ -654,12 +709,14 @@ fn select_row_templates<'a>(
         let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
         let best = pick_best_template(
             templates, heavy, medium, light, last_slug, &variant_counts, &selected,
+            &pool_by_type, post_templates,
             |tws| tws.slots.iter().any(|s| s.weight == "heavy"),
         );
 
         if let Some(tws) = best {
             let rw = row_weight(tws);
             deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            deduct_from_pool_by_type(tws, &mut pool_by_type, post_templates);
             *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
             selected.push((&tws.config, tws));
             hero_accum += rw;
@@ -675,6 +732,7 @@ fn select_row_templates<'a>(
         let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
         let best = pick_best_template(
             templates, heavy, medium, light, last_slug, &variant_counts, &selected,
+            &pool_by_type, post_templates,
             |tws| {
                 tws.slots.iter().any(|s| s.weight == "medium")
                     && !tws.slots.iter().any(|s| s.weight == "heavy")
@@ -684,6 +742,7 @@ fn select_row_templates<'a>(
         if let Some(tws) = best {
             let rw = row_weight(tws);
             deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            deduct_from_pool_by_type(tws, &mut pool_by_type, post_templates);
             *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
             selected.push((&tws.config, tws));
             mid_accum += rw;
@@ -699,12 +758,14 @@ fn select_row_templates<'a>(
         let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
         let best = pick_best_template(
             templates, heavy, medium, light, last_slug, &variant_counts, &selected,
+            &pool_by_type, post_templates,
             |tws| tws.slots.iter().all(|s| s.weight == "light"),
         );
 
         if let Some(tws) = best {
             let rw = row_weight(tws);
             deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            deduct_from_pool_by_type(tws, &mut pool_by_type, post_templates);
             *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
             selected.push((&tws.config, tws));
             dense_accum += rw;
@@ -739,6 +800,8 @@ fn pick_best_template<'a, F>(
     last_slug: Option<&str>,
     variant_counts: &HashMap<&str, usize>,
     already_selected: &[(&RowTemplateConfig, &RowTemplateWithSlots)],
+    pool_by_type: &HashMap<(String, String), usize>,
+    post_templates: &[PostTemplateConfig],
     filter: F,
 ) -> Option<&'a RowTemplateWithSlots>
 where
@@ -777,6 +840,16 @@ where
         let total_needed: usize = tws.slots.iter().map(|s| s.count as usize).sum();
         if score < total_needed {
             continue; // Can't fully fill this template
+        }
+
+        // Type-compatibility pre-check: ensure each slot can find enough posts
+        // whose post_type is accepted by the slot AND compatible with the
+        // slot's required post_template (if any). Without this, we'd pick
+        // templates like `pair-exchange` (needs need/aid) when the pool only
+        // has action/event/reference mediums, then fail to fill later — but
+        // raw weight counts would already be deducted, starving later phases.
+        if !can_fill_template(tws, pool_by_type, post_templates) {
+            continue;
         }
 
         let mut adj_score = score as f64;
@@ -849,6 +922,98 @@ fn deduct_slots(tws: &RowTemplateWithSlots, heavy: &mut usize, medium: &mut usiz
         };
         let consume = (slot.count as usize).min(*available);
         *available -= consume;
+    }
+}
+
+/// Check if a row template's slots can be filled by the current pool,
+/// respecting both weight AND post_type/template compatibility. Simulates
+/// consumption greedily on a cloned pool — does not mutate the input.
+///
+/// Returns true iff every slot has enough matching posts available.
+fn can_fill_template(
+    tws: &RowTemplateWithSlots,
+    pool_by_type: &HashMap<(String, String), usize>,
+    post_templates: &[PostTemplateConfig],
+) -> bool {
+    let mut remaining = pool_by_type.clone();
+    for slot in &tws.slots {
+        let mut need = slot.count as usize;
+        let keys: Vec<(String, String)> = remaining.keys().cloned().collect();
+        for key in keys {
+            if need == 0 {
+                break;
+            }
+            let (w, t) = &key;
+            if w != &slot.weight {
+                continue;
+            }
+            if !slot.accepts_type(t) {
+                continue;
+            }
+            // Verify a compatible post_template exists for this (slot,type)
+            let pt_compat = if let Some(ref tmpl_slug) = slot.post_template_slug {
+                post_templates
+                    .iter()
+                    .any(|pt| &pt.slug == tmpl_slug && pt.is_compatible(t))
+            } else {
+                post_templates.iter().any(|pt| pt.is_compatible(t))
+            };
+            if !pt_compat {
+                continue;
+            }
+            let avail = *remaining.get(&key).unwrap_or(&0);
+            let take = avail.min(need);
+            if take > 0 {
+                *remaining.get_mut(&key).unwrap() -= take;
+                need -= take;
+            }
+        }
+        if need > 0 {
+            return false;
+        }
+    }
+    true
+}
+
+/// Deduct the posts consumed by a row template from the per-(weight,type)
+/// pool. Mirrors `can_fill_template`'s greedy matching so the pool stays
+/// in sync with the raw heavy/medium/light counts.
+fn deduct_from_pool_by_type(
+    tws: &RowTemplateWithSlots,
+    pool_by_type: &mut HashMap<(String, String), usize>,
+    post_templates: &[PostTemplateConfig],
+) {
+    for slot in &tws.slots {
+        let mut need = slot.count as usize;
+        let keys: Vec<(String, String)> = pool_by_type.keys().cloned().collect();
+        for key in keys {
+            if need == 0 {
+                break;
+            }
+            let (w, t) = &key;
+            if w != &slot.weight {
+                continue;
+            }
+            if !slot.accepts_type(t) {
+                continue;
+            }
+            let pt_compat = if let Some(ref tmpl_slug) = slot.post_template_slug {
+                post_templates
+                    .iter()
+                    .any(|pt| &pt.slug == tmpl_slug && pt.is_compatible(t))
+            } else {
+                post_templates.iter().any(|pt| pt.is_compatible(t))
+            };
+            if !pt_compat {
+                continue;
+            }
+            let avail = *pool_by_type.get(&key).unwrap_or(&0);
+            let take = avail.min(need);
+            if take > 0 {
+                *pool_by_type.get_mut(&key).unwrap() -= take;
+                need -= take;
+            }
+        }
     }
 }
 
@@ -961,7 +1126,32 @@ fn find_compatible_post_template(
     None
 }
 
+/// Convert a county name like "Scott" or "Lac qui Parle" to its service_area
+/// tag slug: "scott-county" / "lac-qui-parle-county".
+fn county_service_area_slug(county_name: &str) -> String {
+    let kebab = county_name
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-");
+    // Replace other common separators
+    let kebab = kebab.replace('.', "").replace(',', "");
+    format!("{}-county", kebab)
+}
+
 /// Load active posts relevant to a county.
+///
+/// A post is eligible when any of the following holds:
+///   - Its locationable's zip_code maps to this county.
+///   - Its direct `posts.zip_code` maps to this county (legacy path).
+///   - It has a `service_area` tag matching this county (e.g. `scott-county`).
+///   - It has the explicit `statewide` tag.
+///   - It has NO location at all AND no `service_area` tag (truly statewide).
+///
+/// The critical rule: posts with an explicit `service_area` tag are locked
+/// to that county — they won't fall through the "no location = statewide"
+/// fallback. Without this, county-specific references (e.g. "Scott County
+/// Food Shelves") leak into every county's broadsheet.
 async fn load_county_posts(
     county_id: Uuid,
     period_start: NaiveDate,
@@ -975,6 +1165,14 @@ async fn load_county_posts(
         priority: Option<i32>,
     }
 
+    // Fetch the county's service_area slug so we can match `service_area` tags.
+    let county_name: String =
+        sqlx::query_scalar("SELECT name FROM counties WHERE id = $1")
+            .bind(county_id)
+            .fetch_one(pool)
+            .await?;
+    let service_area = county_service_area_slug(&county_name);
+
     let rows = sqlx::query_as::<_, PostRow>(
         r#"
         SELECT DISTINCT p.id, p.post_type, p.weight, p.priority
@@ -987,14 +1185,35 @@ async fn load_county_posts(
         LEFT JOIN zip_counties zc ON loc.postal_code = zc.zip_code
         WHERE p.status = 'active'
           AND (
+            -- Explicit county match via locationable
             zc.county_id = $1
-            OR la.id IS NULL
+            -- Explicit match via this county's service_area tag
+            OR EXISTS (
+              SELECT 1 FROM taggables t
+              JOIN tags tg ON t.tag_id = tg.id
+              WHERE t.taggable_type = 'post'
+                AND t.taggable_id = p.id
+                AND tg.kind = 'service_area'
+                AND tg.value = $3
+            )
+            -- Explicit statewide tag
             OR EXISTS (
               SELECT 1 FROM taggables t
               JOIN tags tg ON t.tag_id = tg.id
               WHERE t.taggable_type = 'post'
                 AND t.taggable_id = p.id
                 AND tg.value = 'statewide'
+            )
+            -- No location at all AND no service_area tag pinning it elsewhere
+            OR (
+              la.id IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM taggables t
+                JOIN tags tg ON t.tag_id = tg.id
+                WHERE t.taggable_type = 'post'
+                  AND t.taggable_id = p.id
+                  AND tg.kind = 'service_area'
+              )
             )
           )
           AND (p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
@@ -1003,6 +1222,7 @@ async fn load_county_posts(
     )
     .bind(county_id)
     .bind(period_start)
+    .bind(&service_area)
     .fetch_all(pool)
     .await?;
 

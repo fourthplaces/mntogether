@@ -131,14 +131,20 @@ function SlotRenderer({ slot, isAnchor }: { slot: BroadsheetSlotData; isAnchor?:
   const Component = resolveTemplate(slot.postTemplate, slot.post.postType);
   const post = preparePost(slot.post, slot.postTemplate, isAnchor);
 
+  // "Linked card" pattern: the whole card is clickable to the post detail page,
+  // but inner interactive elements (CTA buttons, external links in references)
+  // keep their own behavior. A spanning overlay <a> creates the card-click
+  // target; CSS lifts inner <a>/<button> above it so they take precedence.
+  // This avoids nested-anchor HTML which is invalid and breaks hydration.
   return (
-    <a
-      href={`/posts/${slot.post.id}`}
-      className="post-link"
-      style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
-    >
+    <div className="post-link">
+      <a
+        href={`/posts/${slot.post.id}`}
+        className="post-link__overlay"
+        aria-label={`Read: ${slot.post.title}`}
+      />
       <Component data={post} />
-    </a>
+    </div>
   );
 }
 

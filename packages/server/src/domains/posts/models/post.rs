@@ -837,6 +837,15 @@ impl Post {
     /// using the same criteria as the layout engine (locationables-based,
     /// statewide-tagged, or no-location posts), with optional slotted-filtering
     /// relative to the edition. Mirrors `Widget::find_for_edition`.
+    ///
+    /// Eligibility mirrors `layout_engine::load_county_posts`:
+    ///   - Location (locationable or posts.zip_code) maps to this county, OR
+    ///   - `service_area` tag matches this county's slug, OR
+    ///   - Explicitly tagged `statewide`, OR
+    ///   - No location data AND no `service_area` tag (truly statewide content).
+    ///
+    /// Posts tagged with a `service_area` for a different county are excluded —
+    /// they shouldn't leak via the statewide fallback.
     pub async fn find_for_edition(
         county_id: Uuid,
         period_start: NaiveDate,
@@ -866,11 +875,14 @@ impl Post {
             _ => "",
         };
 
-        // Mirrors the layout engine's post eligibility (see
-        // `layout_engine.rs::load_county_posts`): a post is eligible if it has
-        // a location in this county, has no location at all (statewide-ish
-        // fallback), or is explicitly tagged 'statewide'. Also accepts posts
-        // whose p.zip_code maps to this county.
+        // Compute the county's service_area slug for tag-based matching.
+        let county_name: String =
+            sqlx::query_scalar("SELECT name FROM counties WHERE id = $1")
+                .bind(county_id)
+                .fetch_one(pool)
+                .await?;
+        let service_area = county_service_area_slug(&county_name);
+
         let sql = format!(
             r#"
             SELECT DISTINCT p.* FROM posts p
@@ -888,13 +900,31 @@ impl Post {
               AND (
                 zc_loc.county_id = $1
                 OR zc_p.county_id = $1
-                OR la.id IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM taggables t
+                  JOIN tags tg ON t.tag_id = tg.id
+                  WHERE t.taggable_type = 'post'
+                    AND t.taggable_id = p.id
+                    AND tg.kind = 'service_area'
+                    AND tg.value = $7
+                )
                 OR EXISTS (
                   SELECT 1 FROM taggables t
                   JOIN tags tg ON t.tag_id = tg.id
                   WHERE t.taggable_type = 'post'
                     AND t.taggable_id = p.id
                     AND tg.value = 'statewide'
+                )
+                OR (
+                  la.id IS NULL
+                  AND p.zip_code IS NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM taggables t
+                    JOIN tags tg ON t.tag_id = tg.id
+                    WHERE t.taggable_type = 'post'
+                      AND t.taggable_id = p.id
+                      AND tg.kind = 'service_area'
+                  )
                 )
               )
               AND (p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
@@ -908,10 +938,11 @@ impl Post {
         sqlx::query_as::<_, Self>(&sql)
             .bind(county_id)
             .bind(period_start)
-            .bind(period_start) // placeholder to keep $3 stable even though unused here
+            .bind(period_start) // $3 placeholder
             .bind(edition_id)
             .bind(limit)
             .bind(offset)
+            .bind(&service_area) // $7
             .fetch_all(pool)
             .await
             .map_err(Into::into)
@@ -1421,4 +1452,19 @@ impl Post {
         .await
         .map_err(Into::into)
     }
+}
+
+/// Convert a county name like "Scott" or "Lac qui Parle" to its
+/// `service_area` tag slug: "scott-county" / "lac-qui-parle-county".
+///
+/// Mirrored in `layout_engine.rs`. Keep these in sync if the slug format
+/// changes.
+fn county_service_area_slug(county_name: &str) -> String {
+    let kebab = county_name
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-");
+    let kebab = kebab.replace('.', "").replace(',', "");
+    format!("{}-county", kebab)
 }

@@ -110,11 +110,18 @@ out("");
 
 // --- Posts -----------------------------------------------------------------
 
-// Clean up any previous seed run. Delete all ingested posts (seed data)
-// so re-running the seed is idempotent. CASCADE via FK handles field group rows.
-out("-- Clean previous seed data (ingested posts only)");
-out("DELETE FROM edition_slots WHERE post_id IN (SELECT id FROM posts WHERE submission_type = 'ingested');");
-out("DELETE FROM posts WHERE submission_type = 'ingested';");
+// Clean up any previous seed run. The seeder emits posts with every
+// submission_type that exists: 'admin', 'ingested', 'org_submitted',
+// 'reader_submitted'. Posts has no unique constraint so ON CONFLICT is
+// a no-op; without this wipe, re-runs accumulate duplicates (we've seen
+// 3× multiplication on org_submitted/reader_submitted in practice).
+//
+// This is dev-only seed data — production databases shouldn't run this
+// seeder. If a developer has real local submissions they want to keep,
+// they should save them before re-seeding.
+out("-- Clean ALL previous seed data");
+out("DELETE FROM edition_slots WHERE post_id IN (SELECT id FROM posts WHERE deleted_at IS NULL);");
+out("DELETE FROM posts WHERE deleted_at IS NULL;");
 out("");
 
 out("-- Posts");
@@ -378,35 +385,76 @@ const widgetJson = (obj) => {
   return esc(JSON.stringify(clean));
 };
 
-out("-- Section separators");
-for (const sep of widgets.section_separators) {
+// ── Evergreen widgets (NULL county_id, apply to every edition) ────────────
+out("-- Section separators (evergreen editorial labels)");
+for (const sep of widgets.section_separators || []) {
   out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('section_sep', 'human', ${widgetJson(sep)}::jsonb);`);
 }
 out("");
 
-out("-- Pull quotes");
-for (const pq of widgets.pull_quotes) {
+out("-- Pull quotes (evergreen editorial)");
+for (const pq of widgets.pull_quotes || []) {
   out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('pull_quote', 'human', ${widgetJson(pq)}::jsonb);`);
 }
 out("");
 
-out("-- Resource bars");
-for (const rb of widgets.resource_bars) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb);`);
-}
-out("");
-
-out("-- Numbers (stat cards + number blocks)");
-for (const n of widgets.numbers) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('number', 'human', ${widgetJson(n)}::jsonb);`);
-}
-out("");
-
-out("-- Photos (full-width editorial photo breaks)");
+out("-- Photos (evergreen, generic community imagery)");
 for (const photo of widgets.photos || []) {
   out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb);`);
 }
 out("");
+
+// Truly statewide resource bars / numbers (211, state-level stats). Narrow
+// allowlist; most resource info needs to be local to be useful.
+out("-- Statewide resource bars (narrow evergreen allowlist)");
+for (const rb of widgets.statewide?.resource_bars || []) {
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb);`);
+}
+out("");
+
+out("-- Statewide numbers (narrow evergreen allowlist)");
+for (const n of widgets.statewide?.numbers || []) {
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('number', 'human', ${widgetJson(n)}::jsonb);`);
+}
+out("");
+
+// ── County-specific widgets (county_id set, only appear in that county) ──
+// County slugs map to counties.name via lowercase + kebab-case. Uses a
+// DO block to look up county_id once per county and scope INSERTs to it.
+const perCounty = widgets.per_county || {};
+for (const [countySlug, countyWidgets] of Object.entries(perCounty)) {
+  if (countySlug.startsWith("_")) continue; // skip comment keys
+
+  // Convert slug "big-stone" → "Big Stone" for name-based lookup.
+  const expectedName = countySlug
+    .split("-")
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+
+  out(`-- Widgets for ${expectedName} County`);
+  out(`DO $$
+DECLARE cid uuid;
+BEGIN
+  SELECT id INTO cid FROM counties WHERE LOWER(REPLACE(REPLACE(name, '.', ''), ' ', '-')) = ${esc(countySlug)};
+  IF cid IS NULL THEN
+    RAISE NOTICE 'County not found for slug: %', ${esc(countySlug)};
+    RETURN;
+  END IF;`);
+
+  for (const rb of countyWidgets.resource_bars || []) {
+    out(
+      `  INSERT INTO widgets (widget_type, authoring_mode, data, county_id) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb, cid);`
+    );
+  }
+  for (const n of countyWidgets.numbers || []) {
+    out(
+      `  INSERT INTO widgets (widget_type, authoring_mode, data, county_id) VALUES ('number', 'human', ${widgetJson(n)}::jsonb, cid);`
+    );
+  }
+
+  out(`END $$;`);
+  out("");
+}
 
 out("COMMIT;");
 out("-- Done.");

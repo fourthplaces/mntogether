@@ -1,43 +1,502 @@
 {
   "topic": [
-    { "value": "food", "displayName": "Food", "color": "#ef4444" },
-    { "value": "housing", "displayName": "Housing", "color": "#3b82f6" },
-    { "value": "community", "displayName": "Community", "color": "#f59e0b" },
-    { "value": "education", "displayName": "Education", "color": "#8b5cf6" },
-    { "value": "employment", "displayName": "Employment", "color": "#10b981" },
-    { "value": "health", "displayName": "Health", "color": "#ec4899" },
-    { "value": "legal", "displayName": "Legal", "color": "#6366f1" },
-    { "value": "immigration", "displayName": "Immigration", "color": "#0ea5e9" },
-    { "value": "language-access", "displayName": "Language Access", "color": "#14b8a6" },
-    { "value": "culture", "displayName": "Culture", "color": "#d946ef" },
-    { "value": "voting", "displayName": "Voting", "color": "#f97316" },
-    { "value": "transit", "displayName": "Transit", "color": "#64748b" },
-    { "value": "community-voices", "displayName": "Community Voices", "color": "#a855f7" },
-    { "value": "environment", "displayName": "Environment", "color": "#22c55e" },
-    { "value": "donations", "displayName": "Donations", "color": "#f43f5e" },
-    { "value": "childcare", "displayName": "Childcare", "color": "#06b6d4" },
-    { "value": "winter-gear", "displayName": "Winter Gear", "color": "#84cc16" },
-    { "value": "census", "displayName": "Census", "color": "#eab308" },
-    { "value": "resettlement", "displayName": "Resettlement", "color": "#0284c7" },
-    { "value": "safety", "displayName": "Safety", "color": "#e11d48" },
-    { "value": "restaurant", "displayName": "Restaurant", "color": "#fb923c" }
+    {
+      "value": "food",
+      "displayName": "Food",
+      "color": "#ef4444"
+    },
+    {
+      "value": "housing",
+      "displayName": "Housing",
+      "color": "#3b82f6"
+    },
+    {
+      "value": "community",
+      "displayName": "Community",
+      "color": "#f59e0b"
+    },
+    {
+      "value": "education",
+      "displayName": "Education",
+      "color": "#8b5cf6"
+    },
+    {
+      "value": "employment",
+      "displayName": "Employment",
+      "color": "#10b981"
+    },
+    {
+      "value": "health",
+      "displayName": "Health",
+      "color": "#ec4899"
+    },
+    {
+      "value": "legal",
+      "displayName": "Legal",
+      "color": "#6366f1"
+    },
+    {
+      "value": "immigration",
+      "displayName": "Immigration",
+      "color": "#0ea5e9"
+    },
+    {
+      "value": "language-access",
+      "displayName": "Language Access",
+      "color": "#14b8a6"
+    },
+    {
+      "value": "culture",
+      "displayName": "Culture",
+      "color": "#d946ef"
+    },
+    {
+      "value": "voting",
+      "displayName": "Voting",
+      "color": "#f97316"
+    },
+    {
+      "value": "transit",
+      "displayName": "Transit",
+      "color": "#64748b"
+    },
+    {
+      "value": "community-voices",
+      "displayName": "Community Voices",
+      "color": "#a855f7"
+    },
+    {
+      "value": "environment",
+      "displayName": "Environment",
+      "color": "#22c55e"
+    },
+    {
+      "value": "donations",
+      "displayName": "Donations",
+      "color": "#f43f5e"
+    },
+    {
+      "value": "childcare",
+      "displayName": "Childcare",
+      "color": "#06b6d4"
+    },
+    {
+      "value": "winter-gear",
+      "displayName": "Winter Gear",
+      "color": "#84cc16"
+    },
+    {
+      "value": "census",
+      "displayName": "Census",
+      "color": "#eab308"
+    },
+    {
+      "value": "resettlement",
+      "displayName": "Resettlement",
+      "color": "#0284c7"
+    },
+    {
+      "value": "safety",
+      "displayName": "Safety",
+      "color": "#e11d48"
+    },
+    {
+      "value": "restaurant",
+      "displayName": "Restaurant",
+      "color": "#fb923c"
+    },
+    {
+      "value": "brooklyn-center",
+      "displayName": "Brooklyn Center",
+      "color": "#94a3b8"
+    },
+    {
+      "value": "phillips",
+      "displayName": "Phillips",
+      "color": "#94a3b8"
+    },
+    {
+      "value": "north-minneapolis",
+      "displayName": "North Minneapolis",
+      "color": "#94a3b8"
+    },
+    {
+      "value": "lake-street",
+      "displayName": "Lake Street",
+      "color": "#94a3b8"
+    },
+    {
+      "value": "south-metro",
+      "displayName": "South Metro",
+      "color": "#94a3b8"
+    }
   ],
   "serviceArea": [
-    { "value": "hennepin-county", "displayName": "Hennepin County" },
-    { "value": "ramsey-county", "displayName": "Ramsey County" },
-    { "value": "dakota-county", "displayName": "Dakota County" },
-    { "value": "scott-county", "displayName": "Scott County" },
-    { "value": "washington-county", "displayName": "Washington County" },
-    { "value": "brooklyn-center", "displayName": "Brooklyn Center" },
-    { "value": "phillips", "displayName": "Phillips" },
-    { "value": "north-minneapolis", "displayName": "North Minneapolis" },
-    { "value": "lake-street", "displayName": "Lake Street" },
-    { "value": "statewide", "displayName": "Statewide Minnesota" },
-    { "value": "south-metro", "displayName": "South Metro" }
+    {
+      "value": "aitkin-county",
+      "displayName": "Aitkin County"
+    },
+    {
+      "value": "anoka-county",
+      "displayName": "Anoka County"
+    },
+    {
+      "value": "becker-county",
+      "displayName": "Becker County"
+    },
+    {
+      "value": "beltrami-county",
+      "displayName": "Beltrami County"
+    },
+    {
+      "value": "benton-county",
+      "displayName": "Benton County"
+    },
+    {
+      "value": "big-stone-county",
+      "displayName": "Big Stone County"
+    },
+    {
+      "value": "blue-earth-county",
+      "displayName": "Blue Earth County"
+    },
+    {
+      "value": "brown-county",
+      "displayName": "Brown County"
+    },
+    {
+      "value": "carlton-county",
+      "displayName": "Carlton County"
+    },
+    {
+      "value": "carver-county",
+      "displayName": "Carver County"
+    },
+    {
+      "value": "cass-county",
+      "displayName": "Cass County"
+    },
+    {
+      "value": "chippewa-county",
+      "displayName": "Chippewa County"
+    },
+    {
+      "value": "chisago-county",
+      "displayName": "Chisago County"
+    },
+    {
+      "value": "clay-county",
+      "displayName": "Clay County"
+    },
+    {
+      "value": "clearwater-county",
+      "displayName": "Clearwater County"
+    },
+    {
+      "value": "cook-county",
+      "displayName": "Cook County"
+    },
+    {
+      "value": "cottonwood-county",
+      "displayName": "Cottonwood County"
+    },
+    {
+      "value": "crow-wing-county",
+      "displayName": "Crow Wing County"
+    },
+    {
+      "value": "dakota-county",
+      "displayName": "Dakota County"
+    },
+    {
+      "value": "dodge-county",
+      "displayName": "Dodge County"
+    },
+    {
+      "value": "douglas-county",
+      "displayName": "Douglas County"
+    },
+    {
+      "value": "faribault-county",
+      "displayName": "Faribault County"
+    },
+    {
+      "value": "fillmore-county",
+      "displayName": "Fillmore County"
+    },
+    {
+      "value": "freeborn-county",
+      "displayName": "Freeborn County"
+    },
+    {
+      "value": "goodhue-county",
+      "displayName": "Goodhue County"
+    },
+    {
+      "value": "grant-county",
+      "displayName": "Grant County"
+    },
+    {
+      "value": "hennepin-county",
+      "displayName": "Hennepin County"
+    },
+    {
+      "value": "houston-county",
+      "displayName": "Houston County"
+    },
+    {
+      "value": "hubbard-county",
+      "displayName": "Hubbard County"
+    },
+    {
+      "value": "isanti-county",
+      "displayName": "Isanti County"
+    },
+    {
+      "value": "itasca-county",
+      "displayName": "Itasca County"
+    },
+    {
+      "value": "jackson-county",
+      "displayName": "Jackson County"
+    },
+    {
+      "value": "kanabec-county",
+      "displayName": "Kanabec County"
+    },
+    {
+      "value": "kandiyohi-county",
+      "displayName": "Kandiyohi County"
+    },
+    {
+      "value": "kittson-county",
+      "displayName": "Kittson County"
+    },
+    {
+      "value": "koochiching-county",
+      "displayName": "Koochiching County"
+    },
+    {
+      "value": "lac-qui-parle-county",
+      "displayName": "Lac qui Parle County"
+    },
+    {
+      "value": "lake-county",
+      "displayName": "Lake County"
+    },
+    {
+      "value": "lake-of-the-woods-county",
+      "displayName": "Lake of the Woods County"
+    },
+    {
+      "value": "le-sueur-county",
+      "displayName": "Le Sueur County"
+    },
+    {
+      "value": "lincoln-county",
+      "displayName": "Lincoln County"
+    },
+    {
+      "value": "lyon-county",
+      "displayName": "Lyon County"
+    },
+    {
+      "value": "mahnomen-county",
+      "displayName": "Mahnomen County"
+    },
+    {
+      "value": "marshall-county",
+      "displayName": "Marshall County"
+    },
+    {
+      "value": "martin-county",
+      "displayName": "Martin County"
+    },
+    {
+      "value": "mcleod-county",
+      "displayName": "McLeod County"
+    },
+    {
+      "value": "meeker-county",
+      "displayName": "Meeker County"
+    },
+    {
+      "value": "mille-lacs-county",
+      "displayName": "Mille Lacs County"
+    },
+    {
+      "value": "morrison-county",
+      "displayName": "Morrison County"
+    },
+    {
+      "value": "mower-county",
+      "displayName": "Mower County"
+    },
+    {
+      "value": "murray-county",
+      "displayName": "Murray County"
+    },
+    {
+      "value": "nicollet-county",
+      "displayName": "Nicollet County"
+    },
+    {
+      "value": "nobles-county",
+      "displayName": "Nobles County"
+    },
+    {
+      "value": "norman-county",
+      "displayName": "Norman County"
+    },
+    {
+      "value": "olmsted-county",
+      "displayName": "Olmsted County"
+    },
+    {
+      "value": "otter-tail-county",
+      "displayName": "Otter Tail County"
+    },
+    {
+      "value": "pennington-county",
+      "displayName": "Pennington County"
+    },
+    {
+      "value": "pine-county",
+      "displayName": "Pine County"
+    },
+    {
+      "value": "pipestone-county",
+      "displayName": "Pipestone County"
+    },
+    {
+      "value": "polk-county",
+      "displayName": "Polk County"
+    },
+    {
+      "value": "pope-county",
+      "displayName": "Pope County"
+    },
+    {
+      "value": "ramsey-county",
+      "displayName": "Ramsey County"
+    },
+    {
+      "value": "red-lake-county",
+      "displayName": "Red Lake County"
+    },
+    {
+      "value": "redwood-county",
+      "displayName": "Redwood County"
+    },
+    {
+      "value": "renville-county",
+      "displayName": "Renville County"
+    },
+    {
+      "value": "rice-county",
+      "displayName": "Rice County"
+    },
+    {
+      "value": "rock-county",
+      "displayName": "Rock County"
+    },
+    {
+      "value": "roseau-county",
+      "displayName": "Roseau County"
+    },
+    {
+      "value": "scott-county",
+      "displayName": "Scott County"
+    },
+    {
+      "value": "sherburne-county",
+      "displayName": "Sherburne County"
+    },
+    {
+      "value": "sibley-county",
+      "displayName": "Sibley County"
+    },
+    {
+      "value": "stearns-county",
+      "displayName": "Stearns County"
+    },
+    {
+      "value": "steele-county",
+      "displayName": "Steele County"
+    },
+    {
+      "value": "stevens-county",
+      "displayName": "Stevens County"
+    },
+    {
+      "value": "st-louis-county",
+      "displayName": "St. Louis County"
+    },
+    {
+      "value": "swift-county",
+      "displayName": "Swift County"
+    },
+    {
+      "value": "todd-county",
+      "displayName": "Todd County"
+    },
+    {
+      "value": "traverse-county",
+      "displayName": "Traverse County"
+    },
+    {
+      "value": "wabasha-county",
+      "displayName": "Wabasha County"
+    },
+    {
+      "value": "wadena-county",
+      "displayName": "Wadena County"
+    },
+    {
+      "value": "waseca-county",
+      "displayName": "Waseca County"
+    },
+    {
+      "value": "washington-county",
+      "displayName": "Washington County"
+    },
+    {
+      "value": "watonwan-county",
+      "displayName": "Watonwan County"
+    },
+    {
+      "value": "wilkin-county",
+      "displayName": "Wilkin County"
+    },
+    {
+      "value": "winona-county",
+      "displayName": "Winona County"
+    },
+    {
+      "value": "wright-county",
+      "displayName": "Wright County"
+    },
+    {
+      "value": "yellow-medicine-county",
+      "displayName": "Yellow Medicine County"
+    },
+    {
+      "value": "statewide",
+      "displayName": "Statewide Minnesota"
+    }
   ],
   "safety": [
-    { "value": "no_id_required", "displayName": "No ID Required" },
-    { "value": "ice_safe", "displayName": "ICE Safe" },
-    { "value": "know_your_rights", "displayName": "Know Your Rights" }
+    {
+      "value": "no_id_required",
+      "displayName": "No ID Required"
+    },
+    {
+      "value": "ice_safe",
+      "displayName": "ICE Safe"
+    },
+    {
+      "value": "know_your_rights",
+      "displayName": "Know Your Rights"
+    }
   ]
 }

@@ -14,11 +14,11 @@
     "tags": {
       "topic": [
         "housing",
-        "community"
+        "community",
+        "brooklyn-center"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "brooklyn-center"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "When a kitchen fire displaced the Nguyen family from their Brooklyn Center apartment in January, they had no renters insurance and no relatives nearby. With two school-age children and a newborn, Linh Nguyen spent the first night at a hotel paid for by the Red Cross, unsure what would happen next. A caseworker at Hennepin County connected the family with CEAP, which helped them secure temporary housing within 48 hours, provided furniture and household essentials, and connected Linh with a benefits navigator who walked her through every application.",
@@ -78,11 +78,11 @@
     "tags": {
       "topic": [
         "community",
-        "housing"
+        "housing",
+        "phillips"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "phillips"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "When the city ran out of warming center capacity during a bitter cold snap in February, neighbors on 25th and Bloomington Avenue opened their church basement. Within three days they had space heaters, donated blankets, a rotating schedule of volunteers, and enough hot coffee to keep fifty people warm overnight. The block club coordinated with Minneapolis Emergency Management and Hennepin County outreach workers to ensure guests could connect with shelter referrals by morning. It started as an act of desperation, but organizers say it could become a model for neighborhood-level emergency response.",
@@ -242,11 +242,11 @@
     "location": "Burnsville, MN",
     "tags": {
       "topic": [
-        "food"
+        "food",
+        "south-metro"
       ],
       "serviceArea": [
-        "dakota-county",
-        "south-metro"
+        "dakota-county"
       ]
     },
     "bodyHeavy": "Food shelves across Dakota County saw a 40% jump in first-time visitors during January and February, according to data compiled by 360 Communities. Staff attribute the surge to rising grocery costs and the end of pandemic-era SNAP supplements. The Open Door Pantry in Eagan and Hastings Family Service both reported they needed emergency restocking from Second Harvest Heartland to keep pace with demand.",
@@ -521,11 +521,11 @@
     "tags": {
       "topic": [
         "environment",
-        "housing"
+        "housing",
+        "brooklyn-center"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "brooklyn-center"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "A community solar garden in Brooklyn Center is now delivering credits to roughly 300 renter households, cutting their electricity bills by an average of 15%. The project is one of the first in Minnesota specifically designed for renters, who traditionally cannot install rooftop panels.",
@@ -552,11 +552,11 @@
     "tags": {
       "topic": [
         "food",
-        "community"
+        "community",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Chef Amina Hassan recovers surplus produce from restaurants and grocers along Lake Street and transforms it into 500 free meals each week, distributed through three community centers in South Minneapolis. Her operation runs on volunteer labor and donated commercial kitchen space, with zero government funding. Hassan says the meals are culturally appropriate—halal, vegetarian, and allergen-labeled—because she asks recipients what they actually want to eat.",
@@ -574,7 +574,7 @@
   },
   {
     "title": "Winter Shelter Beds Available Tonight—Walk-ins Welcome",
-    "postType": "notice",
+    "postType": "update",
     "weight": "heavy",
     "priority": 95,
     "is_urgent": true,
@@ -604,7 +604,7 @@
   },
   {
     "title": "Boil Water Advisory—North Minneapolis",
-    "postType": "notice",
+    "postType": "update",
     "weight": "heavy",
     "priority": 92,
     "is_urgent": true,
@@ -615,11 +615,11 @@
     "tags": {
       "topic": [
         "safety",
-        "health"
+        "health",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Water main break at 26th and Lyndale. Residents between 24th and 28th Streets should boil water before drinking until further notice. Free bottled water is available at Whittier Park recreation center from 8am to 8pm. City crews are on site and expect repairs to take 24–48 hours. Updates will be posted at minneapolismn.gov/water.",
@@ -635,7 +635,7 @@
   },
   {
     "title": "ICE Activity Reported Near Lake Street",
-    "postType": "notice",
+    "postType": "update",
     "weight": "medium",
     "priority": 88,
     "is_urgent": true,
@@ -646,11 +646,11 @@
     "tags": {
       "topic": [
         "immigration",
-        "legal"
+        "legal",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Community members report ICE agents near Lake Street and Chicago Avenue this morning. Know your rights: you do not have to open your door without a judicial warrant. You have the right to remain silent. Do not sign anything. Call the Immigrant Law Center hotline at 651-641-1011 if you witness activity or need legal guidance.",
@@ -666,7 +666,7 @@
   },
   {
     "title": "Hennepin County Opens 3 New Warming Centers Through March",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 70,
     "submissionType": "ingested",
@@ -693,7 +693,7 @@
   },
   {
     "title": "MNsure Open Enrollment Extended to March 15",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 65,
     "submissionType": "ingested",
@@ -719,7 +719,7 @@
   },
   {
     "title": "Free Tax Prep Sites Open at 12 Library Locations",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 60,
     "submissionType": "ingested",
@@ -745,7 +745,7 @@
   },
   {
     "title": "SNAP Benefits: March EBT Deposits Begin March 4",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 55,
     "submissionType": "ingested",
@@ -771,7 +771,7 @@
   },
   {
     "title": "SNAP Benefits: Processing Delays Expected This Week",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 42,
     "submissionType": "ingested",
@@ -797,7 +797,7 @@
   },
   {
     "title": "Minneapolis Public Schools Announce Snow Day Protocol Changes",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 40,
     "submissionType": "ingested",
@@ -823,7 +823,7 @@
   },
   {
     "title": "Metro Transit Adds Overnight Service on Route 5",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 38,
     "submissionType": "ingested",
@@ -849,7 +849,7 @@
   },
   {
     "title": "Tell Your Rep: Fund Emergency Rental Assistance",
-    "postType": "notice",
+    "postType": "action",
     "weight": "medium",
     "priority": 72,
     "submissionType": "admin",
@@ -881,7 +881,7 @@
   },
   {
     "title": "Make Your Community Count",
-    "postType": "notice",
+    "postType": "action",
     "weight": "medium",
     "priority": 58,
     "submissionType": "admin",
@@ -905,7 +905,7 @@
   },
   {
     "title": "Register to Vote or Check Your Status",
-    "postType": "notice",
+    "postType": "action",
     "weight": "medium",
     "priority": 56,
     "submissionType": "admin",
@@ -929,7 +929,7 @@
   },
   {
     "title": "Ramsey County Emergency Assistance Applications Now Online",
-    "postType": "notice",
+    "postType": "update",
     "weight": "medium",
     "priority": 64,
     "submissionType": "ingested",
@@ -957,7 +957,7 @@
   },
   {
     "title": "Severe Thunderstorm Watch: Metro Area Until 10pm",
-    "postType": "notice",
+    "postType": "update",
     "weight": "medium",
     "priority": 85,
     "is_urgent": true,
@@ -982,7 +982,7 @@
   },
   {
     "title": "Dakota County WIC Offices Extend Hours for Working Parents",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 52,
     "submissionType": "ingested",
@@ -1011,7 +1011,7 @@
   },
   {
     "title": "Free School Supply Kits Available at North Minneapolis Libraries",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 48,
     "submissionType": "admin",
@@ -1020,11 +1020,11 @@
     "location": "North Minneapolis, MN",
     "tags": {
       "topic": [
-        "education"
+        "education",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Free spring semester school supply kits are available while supplies last at North Regional, Webber Park, and Sumner libraries. Kits include notebooks, pencils, folders, and a calculator. One per student, no ID required.",
@@ -1036,7 +1036,7 @@
   },
   {
     "title": "Shakopee Food Shelf Adds Halal and Latino Staples",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 50,
     "submissionType": "ingested",
@@ -1065,7 +1065,7 @@
   },
   {
     "title": "Cottage Grove Opens New Playground at Kingston Park",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 35,
     "submissionType": "admin",
@@ -1089,7 +1089,7 @@
   },
   {
     "title": "Free Legal Clinic for Immigrants This Saturday at CLUES",
-    "postType": "notice",
+    "postType": "update",
     "weight": "medium",
     "priority": 66,
     "submissionType": "ingested",
@@ -1118,7 +1118,7 @@
   },
   {
     "title": "Hennepin County Expands Free Diaper Program",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 46,
     "submissionType": "ingested",
@@ -1147,7 +1147,7 @@
   },
   {
     "title": "New Bus Rapid Transit Station Open at Brooklyn Blvd",
-    "postType": "notice",
+    "postType": "update",
     "weight": "light",
     "priority": 44,
     "submissionType": "ingested",
@@ -1156,11 +1156,11 @@
     "location": "Brooklyn Center, MN",
     "tags": {
       "topic": [
-        "transit"
+        "transit",
+        "brooklyn-center"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "brooklyn-center"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "The new Brooklyn Blvd BRT station on the D Line opened this week, adding a heated shelter, real-time arrival displays, and level boarding for wheelchair users. The station connects to routes serving downtown Minneapolis, Brooklyn Park, and Maple Grove.",
@@ -1179,7 +1179,7 @@
   },
   {
     "title": "Family of 4 Needs Temporary Housing—South Metro",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 85,
     "is_urgent": true,
@@ -1189,18 +1189,19 @@
     "location": "Minneapolis, MN",
     "tags": {
       "topic": [
-        "housing"
+        "housing",
+        "south-metro"
       ],
       "serviceArea": [
         "hennepin-county",
-        "south-metro"
+        "dakota-county"
       ]
     },
     "bodyHeavy": "Parents with two children (ages 3 and 7) currently in shelter. Employed, looking for 2BR in Bloomington, Richfield, or Minneapolis area. Can pay up to $1,200 per month. Case manager available to coordinate move-in. Family has completed housing readiness program. References provided.",
     "bodyMedium": "Family of four in shelter seeking 2BR in south metro. Employed, up to $1,200/mo. Case manager available. Housing-ready.",
     "bodyLight": "Family of 4 needs 2BR housing, south metro. Up to $1,200/mo.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1210,7 +1211,7 @@
   },
   {
     "title": "Food Shelf Volunteers—Weekday Mornings",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 68,
     "submissionType": "org_submitted",
@@ -1220,18 +1221,18 @@
     "tags": {
       "topic": [
         "food",
-        "community"
+        "community",
+        "brooklyn-center"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "brooklyn-center"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Sort and stock donations, greet clients, help with intake paperwork. Tuesday through Friday, 8:30am–12pm. No experience needed. Background check required. Volunteers commit to at least one morning per week for a minimum of three months. Training provided on first day.",
     "bodyMedium": "Sort donations, greet clients, help with paperwork. Tu–Fr 8:30am–12pm. No experience needed. Background check required. Commit to 1 morning/week.",
     "bodyLight": "Food shelf volunteers needed, weekday mornings. Brooklyn Center.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1241,7 +1242,7 @@
   },
   {
     "title": "Winter Coats & Boots—All Sizes",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 66,
     "submissionType": "org_submitted",
@@ -1261,7 +1262,7 @@
     "bodyMedium": "Accepting winter coats, boots, gloves, hats—especially children’s sizes. Drop-off M–F 8am–6pm at front desk. Distributed to families in shelter.",
     "bodyLight": "Winter coats & boots needed, all sizes. Drop off M–F 8–6.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1271,7 +1272,7 @@
   },
   {
     "title": "ESL Conversation Partners",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 55,
     "submissionType": "org_submitted",
@@ -1280,18 +1281,18 @@
     "location": "Brooklyn Center, MN",
     "tags": {
       "topic": [
-        "education"
+        "education",
+        "brooklyn-center"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "brooklyn-center"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Practice English with adult learners, one hour per week. Daytime and evening slots available. No teaching experience needed—just patience and a willingness to listen. CAPI provides training and matches you with a learner.",
     "bodyMedium": "Practice English with adult learners, 1 hr/week. Day and evening slots. No teaching experience needed. CAPI provides training.",
     "bodyLight": "ESL conversation partners needed, 1 hr/week.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1301,7 +1302,7 @@
   },
   {
     "title": "Interpretation—Somali & Hmong",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 53,
     "submissionType": "org_submitted",
@@ -1320,7 +1321,7 @@
     "bodyMedium": "Help community members navigate benefits and intake. Flexible hours, stipend available. Somali or Hmong speakers preferred.",
     "bodyLight": "Interpreters needed—Somali & Hmong. Stipend available.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1330,7 +1331,7 @@
   },
   {
     "title": "Mobile Pantry Drivers—Saturdays",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 50,
     "submissionType": "org_submitted",
@@ -1350,7 +1351,7 @@
     "bodyMedium": "Deliver food across Dakota County on Saturdays. Valid license, lift 40 lbs. 2–3 hour shifts. Mileage reimbursed.",
     "bodyLight": "Mobile pantry drivers needed Saturdays. Mileage reimbursed.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1360,7 +1361,7 @@
   },
   {
     "title": "Room Available in North Minneapolis—Low Cost",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 60,
     "submissionType": "reader_submitted",
@@ -1369,24 +1370,24 @@
     "location": "Near West Broadway, Minneapolis",
     "tags": {
       "topic": [
-        "housing"
+        "housing",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Furnished room in shared house, $400 per month utilities included. Near bus lines 5 and 22. Prefer someone in recovery or recently housed. References required. Quiet household, shared kitchen and bathroom. Available immediately. Contact through posting.",
     "bodyMedium": "Furnished room, $400/mo utilities included. Near bus lines 5 & 22. Prefer someone in recovery or recently housed. References required.",
     "bodyLight": "Room available in North Mpls, $400/mo. Bus lines 5 & 22.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "unverified"
     }
   },
   {
     "title": "Free Furniture—Beds, Tables, Chairs",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 52,
     "submissionType": "org_submitted",
@@ -1406,7 +1407,7 @@
     "bodyMedium": "Free furniture by case manager referral: beds, tables, chairs, kitchen supplies. Delivery available in Hennepin County.",
     "bodyLight": "Free furniture by referral. Delivery in Hennepin County.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1416,7 +1417,7 @@
   },
   {
     "title": "Pro Bono Legal Help—Immigration Cases",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 58,
     "submissionType": "org_submitted",
@@ -1436,7 +1437,7 @@
     "bodyMedium": "Pro bono attorneys for DACA, asylum, and family petitions. Appointment through VLN at 612-752-6677. No fee for eligible clients.",
     "bodyLight": "Free immigration legal help. Call VLN at 612-752-6677.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1446,7 +1447,7 @@
   },
   {
     "title": "Free After-School Program—Ages 6–12",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 56,
     "submissionType": "org_submitted",
@@ -1456,18 +1457,18 @@
     "tags": {
       "topic": [
         "childcare",
-        "education"
+        "education",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Homework help, arts, and recreation Monday through Friday 3–6pm. Snack included. Registration open for spring semester. Program runs through June. Transportation available from select North Minneapolis schools. Staff are background-checked and CPR certified.",
     "bodyMedium": "Homework help, arts, and recreation M–F 3–6pm. Snack included. Spring registration open. Transport from select N. Mpls schools.",
     "bodyLight": "Free after-school program, ages 6–12. M–F 3–6pm.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1477,7 +1478,7 @@
   },
   {
     "title": "Free Rides to Medical Appointments",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 48,
     "submissionType": "org_submitted",
@@ -1495,13 +1496,13 @@
     "bodyMedium": "Door-to-door medical transport for eligible residents. Schedule 1–3 days ahead. Wheelchair accessible. Call 651-602-1111.",
     "bodyLight": "Free medical rides. Call 651-602-1111 to schedule.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     }
   },
   {
     "title": "Bicycle Repair—Free for Anyone",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 44,
     "submissionType": "org_submitted",
@@ -1521,13 +1522,13 @@
     "bodyMedium": "Free bike repairs Saturdays 10am–2pm at Freewheel Workshop. Volunteers help you fix your own bike. All skill levels.",
     "bodyLight": "Free bike repairs Saturdays 10–2 at Freewheel Workshop.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     }
   },
   {
     "title": "Sewing Machine & Fabric—Free to Take",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 38,
     "submissionType": "reader_submitted",
@@ -1546,13 +1547,13 @@
     "bodyMedium": "Working Singer sewing machine, fabric, and thread. Free pickup in East St. Paul. Great for tailoring or learning to sew.",
     "bodyLight": "Free sewing machine and fabric. Pickup in East St. Paul.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "unverified"
     }
   },
   {
     "title": "Somali Women’s Support Circle—Weekly Meetings",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 54,
     "submissionType": "org_submitted",
@@ -1572,7 +1573,7 @@
     "bodyMedium": "Peer support for Somali women, Wednesdays 10am–12pm at Brian Coyle Center. Facilitated in Somali. Childcare and tea provided.",
     "bodyLight": "Somali women’s support circle, Wednesdays at Brian Coyle.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1582,7 +1583,7 @@
   },
   {
     "title": "Volunteer Tax Preparers Needed—VITA Program",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 46,
     "submissionType": "org_submitted",
@@ -1601,13 +1602,13 @@
     "bodyMedium": "VITA needs bilingual tax preparers. Free IRS training. Shifts at libraries in Hennepin and Ramsey counties. Somali, Hmong, Spanish speakers needed.",
     "bodyLight": "VITA needs bilingual volunteer tax preparers. Training provided.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     }
   },
   {
     "title": "Garden Plots Available—Midtown Community Garden",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 40,
     "submissionType": "reader_submitted",
@@ -1617,24 +1618,24 @@
     "tags": {
       "topic": [
         "food",
-        "community"
+        "community",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Four 4x8 raised bed plots available at Midtown Community Garden near Lake Street. Free for first-year gardeners. Water access on site. Tools available to borrow. Great for growing vegetables, herbs, or flowers. Contact the garden coordinator to claim a plot.",
     "bodyMedium": "Four free garden plots at Midtown Community Garden near Lake Street. Water and tools on site. Contact coordinator to claim.",
     "bodyLight": "Free garden plots at Midtown Community Garden, Lake Street.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "unverified"
     }
   },
   {
     "title": "Cribs & Car Seats—New, Free for Qualifying Families",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 51,
     "submissionType": "org_submitted",
@@ -1654,7 +1655,7 @@
     "bodyMedium": "Free new cribs and car seats through 360 Communities. Referral from case manager, home visitor, or WIC required. Installation help available.",
     "bodyLight": "Free cribs and car seats by referral. 360 Communities, Burnsville.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1664,7 +1665,7 @@
   },
   {
     "title": "Karen Language Tutors for K–3 Students",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "light",
     "priority": 42,
     "submissionType": "org_submitted",
@@ -1684,7 +1685,7 @@
     "bodyMedium": "Karen-English tutors needed for K–3 students in Roseville/St. Paul. 2 hrs/week, stipend provided. Training included.",
     "bodyLight": "Karen language tutors needed for K–3. Stipend provided.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1694,7 +1695,7 @@
   },
   {
     "title": "Free Laptops for Job Seekers",
-    "postType": "exchange",
+    "postType": "aid",
     "weight": "medium",
     "priority": 62,
     "submissionType": "org_submitted",
@@ -1713,7 +1714,7 @@
     "bodyMedium": "Free refurbished laptops for job seekers in CLUES, CAPI, or partner workforce programs. Includes warranty and carrying case. One per household.",
     "bodyLight": "Free laptops for job seekers in workforce programs.",
     "status": {
-      "state": "available",
+      "state": "open",
       "verified": "verified"
     },
     "sourceAttribution": {
@@ -1866,11 +1867,11 @@
     "location": "North Minneapolis, MN",
     "tags": {
       "topic": [
-        "health"
+        "health",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Blood pressure, glucose, vision, and dental screenings. Flu shots available. Interpretation in six languages. Representatives from NorthPoint Health, Hennepin Healthcare, and community clinics on site. Free food and children’s activities.",
@@ -2143,11 +2144,11 @@
     "location": "North Minneapolis, MN",
     "tags": {
       "topic": [
-        "community"
+        "community",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Spring youth basketball league for ages 8–14 at the North Community YMCA. Games on Saturdays, practices Tuesdays and Thursdays. Sliding-scale fees, scholarships available. Registration closes March 20.",
@@ -2299,11 +2300,11 @@
     "tags": {
       "topic": [
         "immigration",
-        "health"
+        "health",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Bilingual support group for parents navigating immigration-related anxiety and family stress. Meets biweekly at CLUES Minneapolis. Led by a licensed therapist. Childcare and snacks provided. No referral needed. Available in Spanish.",
@@ -2326,7 +2327,7 @@
   },
   {
     "title": "Li Nguyen",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "medium",
     "priority": 45,
     "submissionType": "admin",
@@ -2335,11 +2336,11 @@
     "location": "Brooklyn Center, MN",
     "tags": {
       "topic": [
-        "community"
+        "community",
+        "brooklyn-center"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "brooklyn-center"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Li has coordinated over 8,000 volunteer shifts since joining CEAP in 2014. She connects food shelf visitors with housing navigators and ESL programs, and has built a network of bilingual volunteers who speak Vietnamese, Hmong, and Somali. Her approach is simple: meet people where they are, listen first, and never let someone leave without knowing their next step.",
@@ -2356,7 +2357,7 @@
   },
   {
     "title": "Marcus Thompson",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "medium",
     "priority": 43,
     "submissionType": "admin",
@@ -2386,7 +2387,7 @@
   },
   {
     "title": "Pimento Jamaican Kitchen",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "medium",
     "priority": 35,
     "submissionType": "admin",
@@ -2396,11 +2397,11 @@
     "tags": {
       "topic": [
         "restaurant",
-        "culture"
+        "culture",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Black-owned Jamaican restaurant on Nicollet Avenue serving jerk chicken, oxtail, and fresh juices. Catering available for community events and organizational meals. The restaurant sources ingredients from local farms when possible and employs staff from the surrounding neighborhood.",
@@ -2446,7 +2447,7 @@
   },
   {
     "title": "Hmong Village Shopping Center",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "medium",
     "priority": 33,
     "submissionType": "admin",
@@ -2505,7 +2506,7 @@
   },
   {
     "title": "Midtown Global Market",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "medium",
     "priority": 32,
     "submissionType": "admin",
@@ -2515,11 +2516,11 @@
     "tags": {
       "topic": [
         "food",
-        "culture"
+        "culture",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "World cuisine under one roof with more than 40 vendors representing cuisines from East Africa, Latin America, Southeast Asia, and the Middle East. Located at the intersection of Lake Street and Chicago Avenue, the market is accessible by bus and light rail. Community events and cooking classes held regularly.",
@@ -2565,7 +2566,7 @@
   },
   {
     "title": "Karmel Mall",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "medium",
     "priority": 30,
     "submissionType": "admin",
@@ -2623,7 +2624,7 @@
   },
   {
     "title": "Fatima Abdi",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "medium",
     "priority": 41,
     "submissionType": "admin",
@@ -2653,7 +2654,7 @@
   },
   {
     "title": "David Xiong",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "medium",
     "priority": 39,
     "submissionType": "admin",
@@ -2683,7 +2684,7 @@
   },
   {
     "title": "Rosa Mendez",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "medium",
     "priority": 37,
     "submissionType": "admin",
@@ -2713,7 +2714,7 @@
   },
   {
     "title": "Tou Moua’s Garden",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "light",
     "priority": 28,
     "submissionType": "admin",
@@ -2740,7 +2741,7 @@
   },
   {
     "title": "Maria’s Pupuseria",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "light",
     "priority": 29,
     "submissionType": "admin",
@@ -2750,11 +2751,11 @@
     "tags": {
       "topic": [
         "restaurant",
-        "culture"
+        "culture",
+        "lake-street"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "lake-street"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "Family-run Salvadoran restaurant on Lake Street known for handmade pupusas, tamales, and horchata. Maria opened the shop in 2019 with savings from her cleaning business and now employs five neighbors. She donates leftover food to the Brian Coyle food shelf every Friday.",
@@ -2795,7 +2796,7 @@
   },
   {
     "title": "James Fairbanks",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "medium",
     "priority": 40,
     "submissionType": "admin",
@@ -2805,11 +2806,11 @@
     "tags": {
       "topic": [
         "health",
-        "community"
+        "community",
+        "north-minneapolis"
       ],
       "serviceArea": [
-        "hennepin-county",
-        "north-minneapolis"
+        "hennepin-county"
       ]
     },
     "bodyHeavy": "James is a peer recovery specialist at NorthPoint Health who supports people navigating sobriety and reentry after incarceration. A North Minneapolis native, he draws on his own recovery journey to build trust with clients who are skeptical of institutions. He has mentored more than 60 men in the past two years.",
@@ -2826,7 +2827,7 @@
   },
   {
     "title": "Oakdale Family Bakery",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "light",
     "priority": 27,
     "submissionType": "admin",
@@ -2874,7 +2875,7 @@
   },
   {
     "title": "Amira Hassan",
-    "postType": "spotlight",
+    "postType": "person",
     "weight": "light",
     "priority": 36,
     "submissionType": "admin",
@@ -2901,7 +2902,7 @@
   },
   {
     "title": "New Prague Butcher Shop",
-    "postType": "spotlight",
+    "postType": "business",
     "weight": "light",
     "priority": 26,
     "submissionType": "admin",
@@ -3385,5 +3386,783 @@
         "detail": "Mpls & St. Paul"
       }
     ]
+  },
+  {
+    "_comment": "═══ AITKIN COUNTY (10) ═══════════════════════════════════════════"
+  },
+  {
+    "title": "When the Plow Doesn't Come: A Winter in Rural Aitkin",
+    "postType": "story",
+    "weight": "heavy",
+    "priority": 80,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": {
+      "topic": ["community", "safety"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyHeavy": "Last February's ice storm left dozens of seniors in McGregor and Palisade without cleared driveways for nearly a week. For residents on oxygen, dialysis, or home-delivered meals, that's not an inconvenience — it's an emergency. A new volunteer-run snow response network emerged from that storm, organized through Aitkin County's senior services office, and now connects homeowners to plow-equipped neighbors within a three-hour radius.",
+    "bodyMedium": "After last February's ice storm stranded rural seniors for days, a volunteer snow response network now connects them to plow-equipped neighbors through Aitkin County senior services.",
+    "bodyLight": "Aitkin's volunteer snow response network keeps rural seniors connected during storms.",
+    "meta": {
+      "kicker": "Community Response",
+      "timestampOffsetDays": -4,
+      "deck": "How neighbors built what the county couldn't scale — a rural snow response network.",
+      "byline": "Root Editorial Staff"
+    }
+  },
+  {
+    "title": "McGregor Ice Fishing Fundraiser Draws 400, Nets $18K for Food Shelf",
+    "postType": "story",
+    "weight": "medium",
+    "priority": 62,
+    "submissionType": "admin",
+    "publishedOffsetDays": -8,
+    "zipCode": "55760",
+    "location": "McGregor, MN",
+    "tags": {
+      "topic": ["food", "community"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyHeavy": "The 18th annual McGregor Ice Fishing Contest on Big Sandy Lake drew a record 400 registered anglers on Saturday, raising $18,200 for the Aitkin Area Food Shelf. Proceeds will fund the shelf's mobile distribution route through March.",
+    "bodyMedium": "The 18th annual McGregor ice fishing contest drew 400 anglers and raised $18K for the Aitkin Area Food Shelf's mobile distribution.",
+    "bodyLight": "Ice fishing contest raises $18K for Aitkin Area Food Shelf.",
+    "meta": {
+      "kicker": "McGregor",
+      "timestampOffsetDays": -8
+    }
+  },
+  {
+    "title": "Aitkin County Household Hazardous Waste Collection — March 22",
+    "postType": "event",
+    "weight": "medium",
+    "priority": 55,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": {
+      "topic": ["environment", "community"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyMedium": "Free household hazardous waste drop-off at the Aitkin County Highway Department from 9am–1pm. Accepts paint, pesticides, batteries, electronics. Proof of residency required.",
+    "bodyLight": "Free hazardous waste drop-off, March 22 at the Aitkin County Highway Department.",
+    "datetime": {
+      "startOffsetDays": 7,
+      "endOffsetDays": 7,
+      "cost": "Free"
+    },
+    "meta": {
+      "kicker": "March 22, 9am–1pm",
+      "timestampOffsetDays": -2
+    }
+  },
+  {
+    "title": "County Commissioners Seek Public Input on Broadband Expansion",
+    "postType": "action",
+    "weight": "medium",
+    "priority": 68,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyMedium": "The Aitkin County Board is collecting resident feedback on which areas should be prioritized for fiber broadband expansion funded by the 2025 state infrastructure allocation. Survey closes April 15.",
+    "bodyLight": "Take the broadband survey — help the county prioritize fiber expansion.",
+    "link": {
+      "label": "Take the broadband survey",
+      "url": "https://co.aitkin.mn.us/broadband-survey"
+    },
+    "meta": {
+      "kicker": "Action Item",
+      "timestampOffsetDays": -3,
+      "deck": "Survey closes April 15."
+    }
+  },
+  {
+    "title": "Seeking: Volunteer Drivers for Meals on Wheels — North Route",
+    "postType": "need",
+    "weight": "medium",
+    "priority": 60,
+    "submissionType": "admin",
+    "publishedOffsetDays": -5,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": {
+      "topic": ["community", "food"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyMedium": "Aitkin Area Meals on Wheels needs 2–3 drivers for the north route covering Palisade and Hill City. Mondays and Wednesdays, 10am–noon. Mileage reimbursement provided.",
+    "bodyLight": "2–3 volunteer drivers needed for Meals on Wheels north route.",
+    "status": { "state": "open", "verified": "2026-04-01" },
+    "meta": {
+      "kicker": "Volunteer Need",
+      "timestampOffsetDays": -5
+    }
+  },
+  {
+    "title": "Ruby's Diner in Palisade Reopens After Kitchen Fire",
+    "postType": "business",
+    "weight": "medium",
+    "priority": 58,
+    "submissionType": "admin",
+    "publishedOffsetDays": -6,
+    "zipCode": "56469",
+    "location": "Palisade, MN",
+    "tags": {
+      "topic": ["restaurant", "community"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyMedium": "Ruby's Diner is back open seven days a week after a November kitchen fire forced a four-month closure. The Palisade landmark kept its walleye sandwich on the menu — and added a new dessert in honor of the volunteer fire department.",
+    "bodyLight": "Ruby's Diner in Palisade reopens after four-month closure.",
+    "meta": {
+      "kicker": "Small Business",
+      "timestampOffsetDays": -6
+    }
+  },
+  {
+    "title": "Aitkin County Community Resources",
+    "postType": "reference",
+    "weight": "medium",
+    "priority": 40,
+    "submissionType": "admin",
+    "publishedOffsetDays": -30,
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyMedium": "Quick-reference directory of core Aitkin County services — social services, food shelves, emergency shelter contacts, and rural transit.",
+    "items": [
+      { "name": "Aitkin County Health & Human Services", "detail": "218-927-7200" },
+      { "name": "Aitkin Area Food Shelf", "detail": "218-927-3504" },
+      { "name": "Mille Lacs Band Family Services", "detail": "McGregor, 320-532-7702" },
+      { "name": "Arrowhead Transit", "detail": "Rural transport, 1-800-862-0175" }
+    ],
+    "meta": { "kicker": "Reference", "timestampOffsetDays": -30, "updated": "March 2026" }
+  },
+  {
+    "title": "Malmo Fire Hall Open House — This Saturday",
+    "postType": "update",
+    "weight": "light",
+    "priority": 45,
+    "submissionType": "admin",
+    "publishedOffsetDays": -1,
+    "zipCode": "56450",
+    "location": "Malmo, MN",
+    "tags": {
+      "topic": ["community", "safety"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyLight": "Malmo Volunteer FD hosts open house Saturday 10am–2pm. Tours, equipment demos, free chili.",
+    "meta": { "kicker": "Malmo", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Library Reopens Children's Section After Roof Repairs",
+    "postType": "update",
+    "weight": "light",
+    "priority": 40,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": {
+      "topic": ["community", "education"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyLight": "Aitkin Public Library's children's section is open again after six weeks of roof repairs.",
+    "meta": { "kicker": "Library", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Highway 169 Bridge Deck Work Scheduled for April 3–5",
+    "postType": "update",
+    "weight": "light",
+    "priority": 50,
+    "submissionType": "admin",
+    "publishedOffsetDays": -1,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": {
+      "topic": ["transit"],
+      "serviceArea": ["aitkin-county"]
+    },
+    "bodyLight": "MnDOT will close one lane of Highway 169 at the Mississippi crossing April 3–5 for deck repairs.",
+    "meta": { "kicker": "Roads", "timestampOffsetDays": -1 }
+  },
+  {
+    "_comment": "═══ ANOKA COUNTY (10) ═══════════════════════════════════════════"
+  },
+  {
+    "title": "Coon Rapids Launches Warming Bus Pilot After Deadly Cold Snap",
+    "postType": "story",
+    "weight": "heavy",
+    "priority": 85,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "zipCode": "55433",
+    "location": "Coon Rapids, MN",
+    "tags": {
+      "topic": ["housing", "safety", "community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyHeavy": "After two people died of exposure in Coon Rapids and Blaine during January's cold snap, Anoka County Public Health launched a mobile warming bus pilot that circulates between the Coon Rapids Civic Center, the Blaine Walmart lot, and Riverdale Station from 8pm to 6am on sub-zero nights. The pilot runs through April and will be evaluated for permanent funding.",
+    "bodyMedium": "Anoka County's new warming bus pilot circulates overnight between Coon Rapids, Blaine, and Riverdale on sub-zero nights. Two deaths during January's cold snap catalyzed the program.",
+    "bodyLight": "Mobile warming bus pilot launches after cold snap claimed two lives in Anoka County.",
+    "meta": {
+      "kicker": "Public Health Response",
+      "timestampOffsetDays": -4,
+      "byline": "Root Editorial Staff"
+    }
+  },
+  {
+    "title": "Andover High School Launches Free Dental Clinic Saturday",
+    "postType": "event",
+    "weight": "medium",
+    "priority": 70,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "zipCode": "55304",
+    "location": "Andover, MN",
+    "tags": {
+      "topic": ["health", "community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyMedium": "Free dental cleanings, exams, and emergency extractions this Saturday 9am–3pm at Andover High School. No insurance required. First-come, first-served. Dental vans staffed by Apple Tree Dental.",
+    "bodyLight": "Free dental clinic Saturday at Andover High, 9am–3pm.",
+    "datetime": {
+      "startOffsetDays": 4,
+      "endOffsetDays": 4,
+      "cost": "Free"
+    },
+    "meta": { "kicker": "This Saturday", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Renter Protection Workshop — Blaine Library",
+    "postType": "event",
+    "weight": "medium",
+    "priority": 55,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "55434",
+    "location": "Blaine, MN",
+    "tags": {
+      "topic": ["housing", "legal"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyMedium": "Mid-Minnesota Legal Aid presents a free renter rights workshop at Blaine Library Wednesday at 6pm. Topics: evictions, security deposits, repair requests. Walk-in legal screening after.",
+    "bodyLight": "Renter rights workshop Wednesday 6pm, Blaine Library.",
+    "datetime": {
+      "startOffsetDays": 2,
+      "endOffsetDays": 2,
+      "cost": "Free"
+    },
+    "meta": { "kicker": "Wednesday 6pm", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Anoka County Community Action Expands SNAP Navigation Hours",
+    "postType": "update",
+    "weight": "medium",
+    "priority": 52,
+    "submissionType": "admin",
+    "publishedOffsetDays": -5,
+    "zipCode": "55303",
+    "location": "Anoka, MN",
+    "tags": {
+      "topic": ["food", "community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyMedium": "Anoka County Community Action expanded its SNAP application help to include Saturday mornings. Walk-ins welcome 9am–noon at the Anoka office. Help available in English, Spanish, Somali, and Hmong.",
+    "bodyLight": "ACCA expands SNAP help to Saturday mornings. Anoka office, walk-ins welcome.",
+    "meta": { "kicker": "SNAP Help", "timestampOffsetDays": -5 }
+  },
+  {
+    "title": "Volunteer Needed: Kids' Reading Mentors, Blaine Elementary",
+    "postType": "need",
+    "weight": "medium",
+    "priority": 58,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "zipCode": "55434",
+    "location": "Blaine, MN",
+    "tags": {
+      "topic": ["education", "community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyMedium": "Blaine Elementary's literacy program needs 6 adult volunteers to read one-on-one with K-2 students. 45-minute commitment, once a week. Background check required.",
+    "bodyLight": "Reading mentors needed, Blaine Elementary K-2 literacy program.",
+    "status": { "state": "open", "verified": "2026-04-02" },
+    "meta": { "kicker": "Volunteer", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Free: Baby Clothes and Gear, Coon Rapids",
+    "postType": "aid",
+    "weight": "light",
+    "priority": 40,
+    "submissionType": "ingested",
+    "publishedOffsetDays": -1,
+    "zipCode": "55433",
+    "location": "Coon Rapids, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyLight": "Free baby clothes (0–18mo), bassinet, stroller. Pickup in Coon Rapids, evenings after 5.",
+    "status": { "state": "open" },
+    "meta": { "kicker": "Free", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Dr. Amara Okonkwo — The Pediatrician Behind Anoka's School Clinic Program",
+    "postType": "person",
+    "weight": "medium",
+    "priority": 60,
+    "submissionType": "admin",
+    "publishedOffsetDays": -7,
+    "zipCode": "55303",
+    "location": "Anoka, MN",
+    "tags": {
+      "topic": ["health", "community-voices"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyMedium": "Dr. Amara Okonkwo launched Anoka County's first school-based health clinic at Jackson Middle in 2019. Six years later, four county schools have on-site pediatric care. \"Kids were missing school for things that should take 15 minutes to fix.\"",
+    "bodyLight": "Dr. Amara Okonkwo brought pediatric care into Anoka County schools.",
+    "person": {
+      "name": "Dr. Amara Okonkwo",
+      "role": "Pediatrician, Anoka County Schools",
+      "quote": "Kids were missing school for things that should take 15 minutes to fix."
+    },
+    "meta": { "kicker": "Community Voice", "timestampOffsetDays": -7 }
+  },
+  {
+    "title": "Anoka County Food & Housing Help Directory",
+    "postType": "reference",
+    "weight": "medium",
+    "priority": 42,
+    "submissionType": "admin",
+    "publishedOffsetDays": -30,
+    "tags": {
+      "topic": ["food", "housing", "community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyMedium": "Key Anoka County contacts for food, shelter, and emergency assistance.",
+    "items": [
+      { "name": "Anoka County Human Services", "detail": "763-422-7000" },
+      { "name": "ACBC Food Shelf", "detail": "Anoka, 763-767-9892" },
+      { "name": "HomeFree (domestic violence)", "detail": "24h: 763-559-4945" },
+      { "name": "Lee Carlson Center", "detail": "Mental health, 763-324-1400" }
+    ],
+    "meta": { "kicker": "Reference", "timestampOffsetDays": -30, "updated": "March 2026" }
+  },
+  {
+    "title": "Ramsey Library Offers Free Tax Prep Appointments",
+    "postType": "update",
+    "weight": "light",
+    "priority": 48,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "55303",
+    "location": "Ramsey, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyLight": "AARP TaxAide tax prep at Ramsey Library, Tuesdays & Thursdays through April 15.",
+    "meta": { "kicker": "Tax Help", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Fridley Skate Park Reopens After Drainage Repair",
+    "postType": "update",
+    "weight": "light",
+    "priority": 38,
+    "submissionType": "admin",
+    "publishedOffsetDays": -1,
+    "zipCode": "55432",
+    "location": "Fridley, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["anoka-county"]
+    },
+    "bodyLight": "Fridley Skate Park is open again after two months closed for drainage work.",
+    "meta": { "kicker": "Fridley", "timestampOffsetDays": -1 }
+  },
+  {
+    "_comment": "═══ BECKER COUNTY (10) ═══════════════════════════════════════════"
+  },
+  {
+    "title": "Detroit Lakes' Summer Workforce Squeeze: When Staff Can't Afford to Live Here",
+    "postType": "story",
+    "weight": "heavy",
+    "priority": 82,
+    "submissionType": "admin",
+    "publishedOffsetDays": -5,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["housing", "employment", "community"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyHeavy": "Three Detroit Lakes restaurants closed early last summer not because of slow business — but because they couldn't find staff who could afford area rents. Short-term rentals have gutted the long-term housing market in Becker County's tourism economy, and local employers, schools, and the hospital are all competing with Airbnb for the same housing stock. A new coalition of employers is piloting employer-supported housing.",
+    "bodyMedium": "Detroit Lakes' summer economy runs on workers who can't afford to live in the county. Short-term rentals have gutted long-term housing. A new employer-housing coalition is piloting a response.",
+    "bodyLight": "Becker County's tourism economy is colliding with its housing shortage.",
+    "meta": {
+      "kicker": "Workforce & Housing",
+      "timestampOffsetDays": -5,
+      "byline": "Root Editorial Staff"
+    }
+  },
+  {
+    "title": "Frazee Turkey Trot 5K — Saturday Morning",
+    "postType": "event",
+    "weight": "medium",
+    "priority": 58,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56544",
+    "location": "Frazee, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyMedium": "The 32nd annual Frazee Turkey Trot 5K kicks off at Town Square at 9am. $20 registration benefits the Frazee Food Pantry. Kids' fun run free.",
+    "bodyLight": "Frazee Turkey Trot 5K, Saturday 9am. Benefits Frazee Food Pantry.",
+    "datetime": {
+      "startOffsetDays": 4,
+      "endOffsetDays": 4,
+      "cost": "$20"
+    },
+    "meta": { "kicker": "This Saturday", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "County Seeks Public Comment on Wastewater Grant Proposal",
+    "postType": "action",
+    "weight": "medium",
+    "priority": 62,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["environment", "community"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyMedium": "Becker County is applying for a $4.1M state grant to expand the Lake Park wastewater treatment plant. Public comments accepted through March 30 at the county administrator's office.",
+    "bodyLight": "Comment on Lake Park wastewater grant proposal by March 30.",
+    "link": {
+      "label": "Submit public comment",
+      "url": "https://co.becker.mn.us/wastewater-grant-comment"
+    },
+    "meta": { "kicker": "Deadline: March 30", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Mahube-Otwa Resumes Weatherization Waitlist",
+    "postType": "update",
+    "weight": "medium",
+    "priority": 54,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["housing", "community"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyMedium": "Mahube-Otwa Community Action has reopened its home weatherization waitlist for Becker County. Income-qualifying homeowners and renters can get insulation, air-sealing, and heating upgrades at no cost. Expected wait: 8–14 months.",
+    "bodyLight": "Mahube-Otwa's free home weatherization waitlist reopens for Becker County.",
+    "meta": { "kicker": "Housing Services", "timestampOffsetDays": -4 }
+  },
+  {
+    "title": "Donation Drive: School Supplies for Lake Park-Audubon Students",
+    "postType": "need",
+    "weight": "medium",
+    "priority": 56,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56554",
+    "location": "Lake Park, MN",
+    "tags": {
+      "topic": ["education", "donations"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyMedium": "Lake Park-Audubon Schools are collecting backpacks, notebooks, and winter mittens for students returning from spring break. Drop-off at the district office or any Frazee school.",
+    "bodyLight": "School supply drive for LP-A students. Drop-off at district office or Frazee schools.",
+    "status": { "state": "open", "verified": "2026-04-05" },
+    "meta": { "kicker": "Donation Drive", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "The Bait Box: How a Detroit Lakes Shop Became the Town's Unofficial Job Board",
+    "postType": "business",
+    "weight": "medium",
+    "priority": 55,
+    "submissionType": "admin",
+    "publishedOffsetDays": -7,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["community", "employment"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyMedium": "The Bait Box on Washington Avenue has been selling minnows for 47 years — and in the past decade, it's also become Detroit Lakes' most reliable job board. Owner Delores Thompson says seasonal employers started posting to her window because it's \"the one place every single local stops in.\"",
+    "bodyLight": "The Bait Box's window is Detroit Lakes' most reliable job board.",
+    "meta": { "kicker": "Small Business", "timestampOffsetDays": -7 }
+  },
+  {
+    "title": "Becker County Emergency Resource Directory",
+    "postType": "reference",
+    "weight": "medium",
+    "priority": 40,
+    "submissionType": "admin",
+    "publishedOffsetDays": -30,
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyMedium": "Frontline resources for housing, food, mental health, and emergencies in Becker County.",
+    "items": [
+      { "name": "Becker County Human Services", "detail": "218-847-5628" },
+      { "name": "Mahube-Otwa Community Action", "detail": "218-847-1676" },
+      { "name": "Detroit Lakes Food Shelf", "detail": "218-844-4111" },
+      { "name": "Lakes Crisis & Resource Center", "detail": "218-847-8572, 24/7" }
+    ],
+    "meta": { "kicker": "Reference", "timestampOffsetDays": -30, "updated": "March 2026" }
+  },
+  {
+    "title": "Detroit Lakes Senior Center Lunch Menu Now Online",
+    "postType": "update",
+    "weight": "light",
+    "priority": 35,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["community", "food"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyLight": "Detroit Lakes Senior Center now posts its weekly lunch menu and sign-up on the city website.",
+    "meta": { "kicker": "Seniors", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Ice Road Season Extended on Big Detroit Lake",
+    "postType": "update",
+    "weight": "light",
+    "priority": 42,
+    "submissionType": "admin",
+    "publishedOffsetDays": -1,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyLight": "Cold snap means Big Detroit Lake's ice road to the point stays open through March 20.",
+    "meta": { "kicker": "Lakes Update", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Highway 34 Repaving Pushed to May",
+    "postType": "update",
+    "weight": "light",
+    "priority": 38,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56501",
+    "location": "Detroit Lakes, MN",
+    "tags": {
+      "topic": ["transit"],
+      "serviceArea": ["becker-county"]
+    },
+    "bodyLight": "MnDOT pushed the Highway 34 repaving project east of Detroit Lakes from April to May.",
+    "meta": { "kicker": "Roads", "timestampOffsetDays": -2 }
+  },
+  {
+    "_comment": "═══ BELTRAMI COUNTY (10) ═══════════════════════════════════════════"
+  },
+  {
+    "title": "Bemidji's Cold-Weather Shelter Ran Out of Beds Every Night in February",
+    "postType": "story",
+    "weight": "heavy",
+    "priority": 86,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": {
+      "topic": ["housing", "safety", "community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyHeavy": "Bemidji's only adult overflow shelter hit capacity every single night in February, turning away dozens of people to sleep in cars or doorways during sub-zero temperatures. Community organizers are pushing the city and county to open a second site in partnership with Red Lake Nation's social services — a collaboration that has existed informally for years but never at this scale.",
+    "bodyMedium": "Bemidji's adult overflow shelter turned away people every night in February. A new cross-jurisdictional partnership with Red Lake Nation is being pushed to open a second site.",
+    "bodyLight": "Bemidji's shelter hit capacity nightly in February. Organizers push for second site.",
+    "meta": {
+      "kicker": "Shelter Capacity",
+      "timestampOffsetDays": -4,
+      "byline": "Root Editorial Staff"
+    }
+  },
+  {
+    "title": "Bemidji Pow Wow Returns to Sanford Center — April 13",
+    "postType": "event",
+    "weight": "medium",
+    "priority": 74,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": {
+      "topic": ["culture", "community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyMedium": "The 43rd Annual Bemidji State University Pow Wow returns to the Sanford Center April 13. Grand entries at 1pm and 7pm. Free and open to the public. Regalia, dancing, drum groups, and food vendors.",
+    "bodyLight": "43rd BSU Pow Wow at Sanford Center, April 13. Free.",
+    "datetime": {
+      "startOffsetDays": 14,
+      "endOffsetDays": 14,
+      "cost": "Free"
+    },
+    "meta": { "kicker": "April 13", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Kelliher Community Clinic Opens Walk-in Mental Health Hours",
+    "postType": "update",
+    "weight": "medium",
+    "priority": 60,
+    "submissionType": "admin",
+    "publishedOffsetDays": -5,
+    "zipCode": "56650",
+    "location": "Kelliher, MN",
+    "tags": {
+      "topic": ["health", "community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyMedium": "The Kelliher Community Clinic now offers walk-in mental health screening Thursdays 10am–3pm. Licensed therapists on-site, sliding fee scale, no appointment needed.",
+    "bodyLight": "Walk-in mental health hours Thursdays 10am–3pm, Kelliher Clinic.",
+    "meta": { "kicker": "Mental Health", "timestampOffsetDays": -5 }
+  },
+  {
+    "title": "Bemidji Community Food Shelf Seeks Saturday Volunteers",
+    "postType": "need",
+    "weight": "medium",
+    "priority": 58,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": {
+      "topic": ["food", "community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyMedium": "Bemidji Community Food Shelf needs 4 regular Saturday volunteers for distribution, 8am–noon. Must lift 30 lbs. Orientation provided.",
+    "bodyLight": "Saturday distribution volunteers needed, Bemidji Community Food Shelf.",
+    "status": { "state": "open", "verified": "2026-04-03" },
+    "meta": { "kicker": "Volunteer", "timestampOffsetDays": -4 }
+  },
+  {
+    "title": "Free: Ice Fishing Gear Bundle, Bemidji Pickup",
+    "postType": "aid",
+    "weight": "light",
+    "priority": 35,
+    "submissionType": "ingested",
+    "publishedOffsetDays": -2,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyLight": "Free: auger, tip-ups, bucket, tackle. Moving out of state. Bemidji pickup only.",
+    "status": { "state": "open" },
+    "meta": { "kicker": "Free", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Jessica Roy Built Bemidji's First Indigenous-Run Doula Collective",
+    "postType": "person",
+    "weight": "medium",
+    "priority": 62,
+    "submissionType": "admin",
+    "publishedOffsetDays": -8,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": {
+      "topic": ["health", "community-voices", "culture"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyMedium": "Jessica Roy (Red Lake Nation) founded Wáasa Birth Collective in 2022 after her own traumatic hospital birth. The collective has supported 63 births across Beltrami and Clearwater counties — most for Indigenous families — with zero NICU transfers.",
+    "bodyLight": "Jessica Roy's Wáasa Birth Collective supports Indigenous families through birth.",
+    "person": {
+      "name": "Jessica Roy",
+      "role": "Founder, Wáasa Birth Collective",
+      "quote": "The way we were treated in that hospital room changed how I think about who gets to be in the room when a baby is born."
+    },
+    "meta": { "kicker": "Community Voice", "timestampOffsetDays": -8 }
+  },
+  {
+    "title": "Beltrami County Crisis & Support Directory",
+    "postType": "reference",
+    "weight": "medium",
+    "priority": 42,
+    "submissionType": "admin",
+    "publishedOffsetDays": -30,
+    "tags": {
+      "topic": ["community", "health"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyMedium": "Core contacts for mental health, shelter, and tribal services in Beltrami County.",
+    "items": [
+      { "name": "Beltrami County Health & Human Services", "detail": "218-333-8300" },
+      { "name": "Evergreen Youth & Family Services", "detail": "Shelter, 218-751-4332" },
+      { "name": "Red Lake Nation Family Services", "detail": "218-679-3341" },
+      { "name": "Bemidji Community Food Shelf", "detail": "218-751-2880" }
+    ],
+    "meta": { "kicker": "Reference", "timestampOffsetDays": -30, "updated": "March 2026" }
+  },
+  {
+    "title": "BSU Hockey Arena Hosting Free Community Skate Every Sunday",
+    "postType": "update",
+    "weight": "light",
+    "priority": 40,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyLight": "Free community ice skating Sundays 2–4pm at Sanford Center. Rental skates available.",
+    "meta": { "kicker": "Free Skate", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Blackduck Public Schools Extend Late Bus Through April",
+    "postType": "update",
+    "weight": "light",
+    "priority": 35,
+    "submissionType": "admin",
+    "publishedOffsetDays": -1,
+    "zipCode": "56630",
+    "location": "Blackduck, MN",
+    "tags": {
+      "topic": ["education", "transit"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyLight": "Blackduck Public Schools extended after-school activity bus service through April 30.",
+    "meta": { "kicker": "Schools", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Tribal Tax Credit Workshop — Saturday at Red Lake Nation College",
+    "postType": "update",
+    "weight": "light",
+    "priority": 48,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "zipCode": "56671",
+    "location": "Red Lake, MN",
+    "tags": {
+      "topic": ["community"],
+      "serviceArea": ["beltrami-county"]
+    },
+    "bodyLight": "Tribal-specific tax credit workshop Saturday 10am at Red Lake Nation College.",
+    "meta": { "kicker": "Tax Help", "timestampOffsetDays": -2 }
   }
 ]

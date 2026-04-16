@@ -66,12 +66,16 @@ export function getRowLayout(layoutVariant: string, slotCount?: number): RowLayo
         postsPerCell: [1, 1],
       };
 
-    case 'pair':
+    case 'pair': {
+      // Pair rows vary from 2 slots (pair-bulletin-ledger, pair-digest) to
+      // 4 slots (pair-bulletin-event). Distribute evenly across 2 cells.
+      const pairHalf = Math.ceil((slotCount ?? 2) / 2);
       return {
         variant: 'pair',
         cells: [3, 3],
-        postsPerCell: [2, 2],
+        postsPerCell: [pairHalf, pairHalf],
       };
+    }
 
     case 'pair-stack':
       return {

@@ -1,157 +1,290 @@
 {
-  "_comment": "Evergreen widget seed data. All widgets use authoring_mode='human' (curated) and no geo/temporal targeting (universally applicable). The layout engine picks widgets to insert into widget-standalone rows during edition generation.",
+  "_comment": "Widget seed data split into two tiers. Statewide evergreen widgets (section_separators, pull_quotes, photos, plus a small statewide.resource_bars / statewide.numbers allowlist) are inserted with NULL county_id and apply to every edition. County-specific widgets (resource_bars and numbers keyed by county slug) are inserted with that county's county_id and only appear in that county's editions. Pilot counties: Hennepin, Ramsey, Dakota (metros) + Aitkin, Anoka, Becker (first few alphabetical). Other counties currently have no county-specific widgets — their editions show only evergreen content until more seed data is added.",
 
   "section_separators": [
-    {
-      "title": "Community Needs & Offers",
-      "sub": "Volunteer, donate, or find help"
-    },
-    {
-      "title": "Events & Gatherings",
-      "sub": "What's happening near you"
-    },
-    {
-      "title": "Community Voices",
-      "sub": "The people behind the numbers"
-    },
-    {
-      "title": "By the Numbers",
-      "sub": "Community impact this month"
-    },
-    {
-      "title": "In Brief",
-      "sub": "Corrections, updates, and quiet notes"
-    },
-    {
-      "title": "Resources & Support Local",
-      "sub": null
-    },
-    {
-      "title": "Latest Updates",
-      "sub": "Bulletins from local agencies"
-    }
+    { "title": "Community Needs & Offers", "sub": "Volunteer, donate, or find help" },
+    { "title": "Events & Gatherings", "sub": "What's happening near you" },
+    { "title": "Community Voices", "sub": "The people behind the numbers" },
+    { "title": "By the Numbers", "sub": "Community impact this month" },
+    { "title": "In Brief", "sub": "Corrections, updates, and quiet notes" },
+    { "title": "Resources & Support Local", "sub": null },
+    { "title": "Latest Updates", "sub": "Bulletins from local agencies" }
   ],
 
   "pull_quotes": [
     {
       "quote": "Change happens when neighbors talk to each other, not when they wait for someone else to fix things.",
-      "attribution": "Resident, Phillips neighborhood"
+      "attribution": "Community organizer, Greater Minnesota"
     },
     {
       "quote": "They didn't just give us a list of phone numbers. They picked up the phone and made the call with us.",
-      "attribution": "Nguyen family, Brooklyn Center"
+      "attribution": "Family served by county social services"
     },
     {
       "quote": "We don't need more studies. We need more people showing up.",
-      "attribution": "Community organizer, North Minneapolis"
+      "attribution": "Volunteer coordinator, Minnesota"
     },
     {
       "quote": "Every hour of volunteer time is an hour someone didn't have to face a crisis alone.",
-      "attribution": "VEAP volunteer coordinator"
-    }
-  ],
-
-  "resource_bars": [
-    {
-      "label": "Hotlines & Help",
-      "items": [
-        { "number": "211", "text": "United Way — connects you to local help" },
-        { "number": "988", "text": "Mental health & crisis line" },
-        { "number": "1-866-223-1111", "text": "MN Day One — domestic violence" },
-        { "number": "612-874-8683", "text": "Metro shelter transport" }
-      ]
-    },
-    {
-      "label": "Food & Housing",
-      "items": [
-        { "number": "1-888-711-1151", "text": "Hunger Solutions food helpline" },
-        { "number": "651-291-4567", "text": "Catholic Charities housing intake" },
-        { "number": "612-871-5671", "text": "Simpson Housing — overflow beds" }
-      ]
-    }
-  ],
-
-  "numbers": [
-    {
-      "widget_template": "stat-card",
-      "number": "2,847",
-      "title": "Volunteer hours",
-      "body": "logged this month across metro food shelves and warming centers",
-      "label": null,
-      "detail": null,
-      "color": null
-    },
-    {
-      "widget_template": "stat-card",
-      "number": "156",
-      "title": "Active volunteers",
-      "body": "supporting community meals, tutoring, and neighborhood watches",
-      "label": null,
-      "detail": null,
-      "color": null
-    },
-    {
-      "widget_template": "stat-card",
-      "number": "12%",
-      "title": "Drop in unsheltered homelessness",
-      "body": "Point-in-Time count this winter compared to last year",
-      "label": null,
-      "detail": null,
-      "color": null
-    },
-    {
-      "widget_template": "number-block",
-      "number": "3",
-      "label": "warming centers",
-      "detail": "open nightly through March",
-      "color": "teal",
-      "title": null,
-      "body": null
-    },
-    {
-      "widget_template": "number-block",
-      "number": "50,000",
-      "label": "lbs of food",
-      "detail": "distributed this quarter",
-      "color": "rust",
-      "title": null,
-      "body": null
-    },
-    {
-      "widget_template": "number-block",
-      "number": "1,200",
-      "label": "Afghan refugees resettled",
-      "detail": "across MN in 2025",
-      "color": "plum",
-      "title": null,
-      "body": null
-    },
-    {
-      "widget_template": "number-block",
-      "number": "87",
-      "label": "counties served",
-      "detail": "all of Minnesota covered",
-      "color": "forest",
-      "title": null,
-      "body": null
+      "attribution": "Food shelf volunteer coordinator"
     }
   ],
 
   "photos": [
     {
       "image": "https://images.unsplash.com/photo-1593113598332-cd288d649433?w=1400&h=500&fit=crop",
-      "caption": "Volunteers sort donations at the CEAP warehouse in Brooklyn Center ahead of Saturday's distribution.",
-      "credit": "Photo: CEAP Communications"
+      "caption": "Volunteers sort donations ahead of a weekend distribution.",
+      "credit": "Photo: MN Together"
     },
     {
       "image": "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1400&h=500&fit=crop",
-      "caption": "Lake Street after the first thaw \u2014 shoppers return to the Midtown Global Market as temperatures climb above freezing.",
-      "credit": "Photo: MN Together / J. Olson"
+      "caption": "Minnesota streetscapes after the first thaw — shoppers return as temperatures climb above freezing.",
+      "credit": "Photo: MN Together"
     },
     {
       "image": "https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=1400&h=500&fit=crop",
-      "caption": "Community garden plots open for the season at Midtown Greenway. Over 200 families signed up this year.",
-      "credit": "Photo: Midtown Greenway Coalition"
+      "caption": "Community garden plots open for the season across Minnesota.",
+      "credit": "Photo: MN Together"
     }
-  ]
+  ],
+
+  "statewide": {
+    "_comment": "Truly statewide resources and stats. Narrow allowlist — most people need local info.",
+    "resource_bars": [
+      {
+        "label": "Statewide Hotlines",
+        "items": [
+          { "number": "211", "text": "United Way — connects you to local help" },
+          { "number": "988", "text": "Suicide & crisis lifeline" },
+          { "number": "1-866-223-1111", "text": "MN Day One — domestic violence" },
+          { "number": "1-888-711-1151", "text": "Hunger Solutions food helpline" }
+        ]
+      }
+    ],
+    "numbers": [
+      {
+        "widget_template": "stat-card",
+        "number": "87",
+        "title": "Minnesota counties",
+        "body": "all covered by MN Together's community reporting network",
+        "label": null,
+        "detail": null,
+        "color": null
+      }
+    ]
+  },
+
+  "per_county": {
+    "_comment": "Pilot counties only. County slug matches the `counties.name` lowercased + kebab-case. Add more counties as editorial research produces verified local data.",
+
+    "hennepin": {
+      "resource_bars": [
+        {
+          "label": "Hennepin County Services",
+          "items": [
+            { "number": "612-348-3000", "text": "Hennepin County 311 — information line" },
+            { "number": "612-596-1300", "text": "Hennepin County Human Services" },
+            { "number": "612-348-4111", "text": "Adult Protection / Aging Services" },
+            { "number": "612-348-5970", "text": "Emergency Social Services (24h)" }
+          ]
+        },
+        {
+          "label": "Food & Shelter — Hennepin",
+          "items": [
+            { "number": "763-566-9600", "text": "CEAP (Brooklyn Center)" },
+            { "number": "952-929-1855", "text": "VEAP (Bloomington)" },
+            { "number": "612-871-5671", "text": "Simpson Housing — overflow beds" }
+          ]
+        }
+      ],
+      "numbers": [
+        {
+          "widget_template": "stat-card",
+          "number": "2,847",
+          "title": "Volunteer hours",
+          "body": "logged this month across Hennepin County food shelves and warming centers",
+          "label": null, "detail": null, "color": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "3",
+          "label": "warming centers",
+          "detail": "open nightly in Hennepin County through March",
+          "color": "teal",
+          "title": null, "body": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "50,000",
+          "label": "lbs of food",
+          "detail": "distributed across Hennepin County this quarter",
+          "color": "rust",
+          "title": null, "body": null
+        }
+      ]
+    },
+
+    "ramsey": {
+      "resource_bars": [
+        {
+          "label": "Ramsey County Services",
+          "items": [
+            { "number": "651-266-8500", "text": "Ramsey County Main — general information" },
+            { "number": "651-266-4444", "text": "Ramsey County Social Services" },
+            { "number": "651-291-4567", "text": "Catholic Charities housing intake (St. Paul)" },
+            { "number": "651-265-2350", "text": "Workforce Solutions — employment help" }
+          ]
+        },
+        {
+          "label": "Food & Shelter — Ramsey",
+          "items": [
+            { "number": "651-778-8572", "text": "Neighborhood House (West Side)" },
+            { "number": "651-224-9500", "text": "Union Gospel Mission (St. Paul)" },
+            { "number": "651-215-2260", "text": "Keystone Community Services" }
+          ]
+        }
+      ],
+      "numbers": [
+        {
+          "widget_template": "stat-card",
+          "number": "1,120",
+          "title": "Volunteer hours",
+          "body": "logged across Ramsey County community programs this month",
+          "label": null, "detail": null, "color": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "12",
+          "label": "active food shelves",
+          "detail": "serving Ramsey County residents weekly",
+          "color": "forest",
+          "title": null, "body": null
+        }
+      ]
+    },
+
+    "dakota": {
+      "resource_bars": [
+        {
+          "label": "Dakota County Services",
+          "items": [
+            { "number": "651-554-6000", "text": "Dakota County Main Line" },
+            { "number": "651-554-5611", "text": "Dakota County Social Services" },
+            { "number": "952-891-7400", "text": "Community Action Partnership of Dakota County" },
+            { "number": "651-450-2500", "text": "360 Communities — crisis support" }
+          ]
+        }
+      ],
+      "numbers": [
+        {
+          "widget_template": "stat-card",
+          "number": "640",
+          "title": "Households served",
+          "body": "by Dakota County food shelves in the past 30 days",
+          "label": null, "detail": null, "color": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "8",
+          "label": "community resource centers",
+          "detail": "open weekly across Dakota County",
+          "color": "plum",
+          "title": null, "body": null
+        }
+      ]
+    },
+
+    "aitkin": {
+      "resource_bars": [
+        {
+          "label": "Aitkin County Services",
+          "items": [
+            { "number": "218-927-7200", "text": "Aitkin County Main Line" },
+            { "number": "218-927-7200", "text": "Aitkin County Health & Human Services" },
+            { "number": "218-927-7435", "text": "Aitkin County Emergency Management" },
+            { "number": "1-800-332-5437", "text": "MN Rural Crisis Line" }
+          ]
+        }
+      ],
+      "numbers": [
+        {
+          "widget_template": "stat-card",
+          "number": "420",
+          "title": "Residents served",
+          "body": "by Aitkin County Community Action programs this quarter",
+          "label": null, "detail": null, "color": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "2",
+          "label": "food shelves",
+          "detail": "operating countywide in Aitkin",
+          "color": "forest",
+          "title": null, "body": null
+        }
+      ]
+    },
+
+    "anoka": {
+      "resource_bars": [
+        {
+          "label": "Anoka County Services",
+          "items": [
+            { "number": "763-324-4000", "text": "Anoka County Main Line" },
+            { "number": "763-422-7000", "text": "Anoka County Human Services" },
+            { "number": "763-324-1400", "text": "Lee Carlson Center — mental health" },
+            { "number": "763-767-9892", "text": "ACBC Food Shelf (Anoka County Brotherhood)" }
+          ]
+        }
+      ],
+      "numbers": [
+        {
+          "widget_template": "stat-card",
+          "number": "890",
+          "title": "Households reached",
+          "body": "by Anoka County Community Action last month",
+          "label": null, "detail": null, "color": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "5",
+          "label": "warming centers",
+          "detail": "open across Anoka County through March",
+          "color": "teal",
+          "title": null, "body": null
+        }
+      ]
+    },
+
+    "becker": {
+      "resource_bars": [
+        {
+          "label": "Becker County Services",
+          "items": [
+            { "number": "218-847-5628", "text": "Becker County Main Line" },
+            { "number": "218-847-5628", "text": "Becker County Human Services" },
+            { "number": "218-847-1676", "text": "Mahube-Otwa Community Action" },
+            { "number": "1-800-332-5437", "text": "MN Rural Crisis Line" }
+          ]
+        }
+      ],
+      "numbers": [
+        {
+          "widget_template": "stat-card",
+          "number": "310",
+          "title": "Families assisted",
+          "body": "by Becker County social services this quarter",
+          "label": null, "detail": null, "color": null
+        },
+        {
+          "widget_template": "number-block",
+          "number": "3",
+          "label": "food shelves",
+          "detail": "active across Becker County",
+          "color": "forest",
+          "title": null, "body": null
+        }
+      ]
+    }
+  }
 }

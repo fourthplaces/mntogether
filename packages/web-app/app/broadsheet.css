@@ -193,6 +193,38 @@ body:has(.broadsheet-page) {
 .cell--span-3 { grid-column: span 3; }
 .cell--span-4 { grid-column: span 4; }
 .cell--span-6 { grid-column: span 6; }
+
+/* ── Linked card pattern ──
+   Post cards are wholly clickable (→ detail page) while still allowing
+   inner <a>/<button> elements (CTA links, external references) to take
+   precedence on click. An absolute-positioned overlay anchor spans the
+   card; inner interactives are lifted above it via z-index. This avoids
+   nesting <a> inside <a>, which is invalid HTML and breaks hydration. */
+.post-link {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  display: block;
+}
+.post-link__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* Invisible but focusable + clickable */
+  text-indent: -9999px;
+  overflow: hidden;
+  color: inherit;
+}
+.post-link__overlay:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  text-indent: 0;
+  overflow: visible;
+}
+.post-link :is(a, button) {
+  position: relative;
+  z-index: 2;
+}
 /* row--rule removed: rows get natural separators via .row + .row */
 .row--lead { }
 .row--lead-stack { }
