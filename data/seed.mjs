@@ -154,7 +154,7 @@ for (const p of posts) {
   out(`-- ${p.postType}: ${p.title}`);
   out(`WITH post AS (`);
   out(
-    `    INSERT INTO posts (title, body_raw, body_heavy, body_medium, body_light, post_type, weight, priority, status, submission_type, published_at, location, zip_code, is_urgent)`
+    `    INSERT INTO posts (title, body_raw, body_heavy, body_medium, body_light, post_type, weight, priority, status, submission_type, published_at, location, zip_code, is_urgent, pencil_mark)`
   );
   out(`    VALUES (`);
   out(`        ${esc(p.title)},`);
@@ -163,7 +163,7 @@ for (const p of posts) {
   out(`        ${esc(p.bodyMedium || null)},`);
   out(`        ${esc(p.bodyLight || null)},`);
   out(
-    `        ${esc(p.postType)}, ${esc(p.weight)}, ${p.priority}, 'active', ${esc(submissionType)}, ${publishedAt}, ${esc(p.location || null)}, ${esc(p.zipCode || null)}, ${p.is_urgent ? "true" : "false"}`
+    `        ${esc(p.postType)}, ${esc(p.weight)}, ${p.priority}, 'active', ${esc(submissionType)}, ${publishedAt}, ${esc(p.location || null)}, ${esc(p.zipCode || null)}, ${p.is_urgent ? "true" : "false"}, ${esc(p.pencilMark || null)}`
   );
   out(`    )`);
   out(`    ON CONFLICT DO NOTHING RETURNING id`);

@@ -3422,6 +3422,13 @@ body:has(.broadsheet-page) {
 }
 .resource-bar .rb-item { margin-right: 24px; white-space: nowrap; }
 .resource-bar .rb-item strong { color: var(--ink); }
+.resource-bar .rb-item a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: rgba(0,0,0,0.3);
+  text-underline-offset: 2px;
+}
+.resource-bar .rb-item a strong { color: var(--ink); }
 
 /* ─────────────────────────────────────────────
    FOOTER
