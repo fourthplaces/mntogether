@@ -66,6 +66,16 @@ The layout engine (`layout_engine.rs`, ~1,480 lines) handles template selection,
 | Evergreen posts had old `publishedOffsetDays` | Reference posts fell outside 7-day eligibility window | `-14` and `-30` offsets pre-dated the edition period |
 | No service_area tags for pilot counties | 40 posts had no tags → wrong statewide fallback | `tags.json` only had 5 metro county slugs |
 
+### Row template rules (learned the hard way)
+
+**Rule:** A `pair` layout with `count=1` per cell must use **same-weight slots**. Cross-weight pairs (medium + light) render with massive empty space in the lighter cell because height balancing only runs WITHIN a cell (for stacking), not ACROSS cells.
+
+For medium + light combos, use `pair-stack` variant with `count ≥ 3` on the light side — the stacked lights reach the medium's height. See `pair-stack-gazette` for the canonical shape.
+
+Violations we shipped and fixed:
+- `pair-bulletin-ledger` (medium bulletin height=7 vs light ledger height=3 = 2.3× imbalance) — converted to pair-stack with 3 lights
+- `pair-bulletin-digest` (bulletin=7 vs digest=2 = 3.5× imbalance) — same fix
+
 ### Design mistakes
 
 | Decision | Why it was wrong | What we did |
