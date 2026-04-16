@@ -4772,5 +4772,178 @@
     "bodyLight": "Volunteer carpenters needed to build a wheelchair ramp for a homebound resident. Materials provided.",
     "status": { "state": "open" },
     "meta": { "kicker": "Volunteer Need", "timestampOffsetDays": -3 }
+  },
+  {
+    "_comment": "═══ STATEWIDE FILLER CONTENT ════════════════════════════════════════\nLow-priority evergreen posts that backfill sparse broadsheets.\nReal news gets picked first (higher priority); filler only shows when\nthere's room. Editorial seasonal content that's safe to publish anywhere."
+  },
+  {
+    "title": "Tax Help Available Through April 15",
+    "postType": "action",
+    "weight": "medium",
+    "priority": 18,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "tags": { "topic": ["community"], "serviceArea": ["statewide"] },
+    "bodyMedium": "Free tax prep is available statewide through VITA and AARP TaxAide. Most sites serve anyone earning under $64,000. Bring your W-2s, 1099s, last year's return, and photo ID. Appointments fill up fast as the April 15 deadline approaches.",
+    "bodyLight": "Free tax help available statewide through VITA and AARP TaxAide.",
+    "link": { "label": "Find a tax site near you", "url": "https://www.revenue.state.mn.us/free-tax-preparation-sites" },
+    "meta": { "kicker": "Tax Season", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Daylight Saving Time: Clocks Spring Forward March 9",
+    "postType": "update",
+    "weight": "light",
+    "priority": 15,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "tags": { "topic": ["community"], "serviceArea": ["statewide"] },
+    "bodyLight": "Clocks move ahead one hour at 2 a.m. Sunday, March 9. Good time to check smoke detector batteries.",
+    "meta": { "kicker": "Reminder", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Ice Safety: Know Before You Go",
+    "postType": "update",
+    "weight": "light",
+    "priority": 16,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "tags": { "topic": ["safety"], "serviceArea": ["statewide"] },
+    "bodyLight": "MN DNR recommends 4+ inches of clear ice for foot travel. Call the DNR hotline before heading out on unfamiliar lakes.",
+    "meta": { "kicker": "Safety Reminder", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Free Radon Test Kits Available from MDH",
+    "postType": "action",
+    "weight": "light",
+    "priority": 17,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "tags": { "topic": ["health"], "serviceArea": ["statewide"] },
+    "bodyLight": "MN Department of Health offers free radon test kits to homeowners. Over 2 in 5 MN homes have elevated radon levels.",
+    "link": { "label": "Order a free kit", "url": "https://www.health.state.mn.us/radon" },
+    "meta": { "kicker": "Home Safety", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "MN State Fair Senior Days: Free Admission for 65+",
+    "postType": "update",
+    "weight": "light",
+    "priority": 14,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "tags": { "topic": ["community", "culture"], "serviceArea": ["statewide"] },
+    "bodyLight": "Seniors 65+ get free State Fair admission on designated Senior Days. Check the fair website for dates.",
+    "meta": { "kicker": "Statewide", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Minnesota Book Awards Open Reader Submissions",
+    "postType": "update",
+    "weight": "light",
+    "priority": 13,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "tags": { "topic": ["culture"], "serviceArea": ["statewide"] },
+    "bodyLight": "Friends of the St. Paul Public Library accepts reader-submitted nominations for MN Book Awards until October 31.",
+    "meta": { "kicker": "Statewide", "timestampOffsetDays": -4 }
+  },
+  {
+    "title": "Farmers Market Season Opens May",
+    "postType": "update",
+    "weight": "light",
+    "priority": 12,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "tags": { "topic": ["food", "community"], "serviceArea": ["statewide"] },
+    "bodyLight": "Over 180 farmers markets open across Minnesota in May. SNAP/EBT accepted at most locations; many offer Market Bucks matching.",
+    "meta": { "kicker": "Season Preview", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "MN Voter Information: Check Status Year-Round",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 18,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "tags": { "topic": ["voting", "community"], "serviceArea": ["statewide"] },
+    "bodyLight": "Verify registration, find your polling place, or request an absentee ballot at mnvotes.sos.state.mn.us.",
+    "items": [
+      { "name": "Check registration", "detail": "mnvotes.sos.state.mn.us" },
+      { "name": "Absentee ballot", "detail": "Request online" },
+      { "name": "Voter info line", "detail": "1-877-600-8683" }
+    ],
+    "meta": { "kicker": "Reference", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Burn Ban Season: Check Before Burning",
+    "postType": "update",
+    "weight": "light",
+    "priority": 14,
+    "submissionType": "admin",
+    "publishedOffsetDays": -2,
+    "tags": { "topic": ["safety", "environment"], "serviceArea": ["statewide"] },
+    "bodyLight": "Many counties issue spring burn bans when conditions are dry. Check the MN DNR fire danger map before any outdoor burning.",
+    "meta": { "kicker": "Safety", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Mental Health First Aid Training — Multiple Sites",
+    "postType": "event",
+    "weight": "medium",
+    "priority": 20,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "tags": { "topic": ["health", "community"], "serviceArea": ["statewide"] },
+    "bodyMedium": "NAMI Minnesota offers free Mental Health First Aid training at locations statewide. The 8-hour course covers how to recognize signs of mental health challenges and connect people to help.",
+    "bodyLight": "Free Mental Health First Aid training from NAMI Minnesota at sites statewide.",
+    "meta": { "kicker": "Training", "timestampOffsetDays": -4 }
+  },
+  {
+    "title": "Statewide Weather: Watch for Spring Flooding",
+    "postType": "update",
+    "weight": "medium",
+    "priority": 22,
+    "submissionType": "admin",
+    "publishedOffsetDays": -1,
+    "tags": { "topic": ["safety", "environment"], "serviceArea": ["statewide"] },
+    "bodyMedium": "National Weather Service is watching spring snowmelt conditions across the Red River Valley and Mississippi tributaries. Residents in flood-prone areas should check sandbag availability with county emergency management now.",
+    "bodyLight": "NWS watching spring flood conditions across MN river basins.",
+    "meta": { "kicker": "Weather Alert", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Minnesota State Parks: Free Entry Days",
+    "postType": "event",
+    "weight": "light",
+    "priority": 13,
+    "submissionType": "admin",
+    "publishedOffsetDays": -3,
+    "tags": { "topic": ["community"], "serviceArea": ["statewide"] },
+    "bodyLight": "MN State Parks offer four free admission days each year. Next one: the Saturday after Mother's Day.",
+    "meta": { "kicker": "Free", "timestampOffsetDays": -3 }
+  },
+  {
+    "title": "Energy Assistance Open Through May 31",
+    "postType": "action",
+    "weight": "medium",
+    "priority": 21,
+    "submissionType": "admin",
+    "publishedOffsetDays": -5,
+    "tags": { "topic": ["housing", "community"], "serviceArea": ["statewide"] },
+    "bodyMedium": "The Energy Assistance Program (EAP) helps income-qualified households pay winter heating bills. Applications accepted through May 31. Households earning under 60% of state median income qualify.",
+    "bodyLight": "Apply for Energy Assistance through May 31 — income-qualified households.",
+    "link": { "label": "Apply online", "url": "https://mn.gov/commerce/consumers/consumer-assistance/energy-assistance/" },
+    "meta": { "kicker": "Program", "timestampOffsetDays": -5 }
+  },
+  {
+    "title": "Free Naloxone Distribution at Participating Pharmacies",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 19,
+    "submissionType": "admin",
+    "publishedOffsetDays": -4,
+    "tags": { "topic": ["health"], "serviceArea": ["statewide"] },
+    "bodyLight": "Free naloxone (Narcan) available at participating MN pharmacies without a prescription through MDH.",
+    "items": [
+      { "name": "Find a pharmacy", "detail": "health.state.mn.us/naloxone" },
+      { "name": "MN Poison Control", "detail": "1-800-222-1222" }
+    ],
+    "meta": { "kicker": "Harm Reduction", "timestampOffsetDays": -4 }
   }
 ]

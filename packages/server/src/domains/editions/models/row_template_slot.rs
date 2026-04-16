@@ -15,6 +15,12 @@ pub struct RowTemplateSlot {
     pub slot_index: i32,
     pub weight: String,
     pub count: i32,
+    /// Minimum posts required to emit this slot (and the row). If fewer
+    /// compatible posts exist, the row is abandoned. Defaults to `count`.
+    pub count_min: i32,
+    /// Maximum posts this slot will absorb. The engine fills up to this.
+    /// Defaults to `count` (exact fill).
+    pub count_max: i32,
     pub accepts: Option<Vec<String>>,
     pub post_template_slug: Option<String>,
 }

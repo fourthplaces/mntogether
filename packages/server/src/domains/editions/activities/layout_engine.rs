@@ -453,9 +453,11 @@ fn fill_row(
             template.layout_variant.as_str(),
         );
 
-        if filled.is_empty() {
-            // Can't fill this slot group — abandon the entire row.
-            // Undo any placements we already made for this row.
+        // Abandon the row if this slot didn't meet its minimum.
+        // For exact-count slots (count_min = count_max = count), this is the
+        // same as the old "empty = abandon" logic. For flexible slots, we
+        // accept a partial fill as long as it hits count_min.
+        if (filled.len() as i32) < slot_def.count_min {
             for slot in &row_slots {
                 if let Some(idx) = posts.iter().position(|p| p.id == slot.post_id) {
                     placed[idx] = false;
@@ -464,7 +466,9 @@ fn fill_row(
             tracing::debug!(
                 template = %template.slug,
                 slot_index = slot_def.slot_index,
-                "Layout engine: abandoned row — unfillable slot"
+                filled = filled.len(),
+                count_min = slot_def.count_min,
+                "Layout engine: abandoned row — slot below count_min"
             );
             return None;
         }
@@ -579,7 +583,7 @@ fn fill_slot_group(
     let mut group_template: Option<String> = None;
 
     for (i, _post, _score) in &candidates {
-        if filled.len() as i32 >= slot_def.count {
+        if filled.len() as i32 >= slot_def.count_max {
             break;
         }
 
@@ -592,19 +596,21 @@ fn fill_slot_group(
             let template_matches = group_template.as_ref().map_or(true, |gt| &pt_slug == gt);
 
             if !type_matches || !template_matches {
-                // Skip if enough matching candidates remain
-                let slots_remaining = slot_def.count as usize - filled.len();
+                // Skip only if enough matching candidates remain to hit count_min.
+                // If we're below count_min, take what we can — diversity is
+                // less important than filling the row.
+                let slots_remaining_to_max = slot_def.count_max as usize - filled.len();
                 let remaining_matching = candidates.iter()
                     .filter(|(ci, _, _)| {
                         if placed[*ci] { return false; }
                         let type_ok = group_type.as_ref().map_or(true, |gt| &posts[*ci].post_type == gt);
                         if !type_ok { return false; }
-                        // Check template compatibility
                         resolve_post_template(&posts[*ci], slot_def, post_templates)
                             .map_or(false, |slug| group_template.as_ref().map_or(true, |gt| &slug == gt))
                     })
                     .count();
-                if remaining_matching >= slots_remaining {
+                let below_min = (filled.len() as i32) < slot_def.count_min;
+                if !below_min && remaining_matching >= slots_remaining_to_max {
                     continue;
                 }
             }
@@ -831,6 +837,70 @@ fn select_row_templates<'a>(
         "Layout engine: weight budget filled"
     );
 
+    // Phase 4: Spillover — pack remaining posts into catchall rows,
+    // skipping variety rules. Only catchall-* templates qualify. These
+    // have flexible slot counts (count_min < count_max) and broad accepts
+    // arrays, so they absorb whatever's left. Editorially, this produces
+    // a "community digest" at the bottom of sparse broadsheets rather
+    // than leaving good content on the bench.
+    let mut spillover_rows: usize = 0;
+    loop {
+        let pool_has_content = pool_by_type.values().any(|&v| v > 0);
+        if !pool_has_content {
+            break;
+        }
+
+        // Try each catchall template. Skip variety rules — these are the
+        // bottom-of-page overflow containers, not the main editorial.
+        let best_catchall = templates
+            .iter()
+            .filter(|tws| tws.config.slug.starts_with("catchall-"))
+            .filter(|tws| can_fill_template(tws, &pool_by_type, post_templates))
+            .max_by_key(|tws| {
+                // Prefer templates that consume more of the pool
+                let mut sim = pool_by_type.clone();
+                let mut consumed = 0i32;
+                for slot in &tws.slots {
+                    let keys: Vec<(String, String)> = sim.keys().cloned().collect();
+                    let mut taken = 0;
+                    for key in keys {
+                        if taken >= slot.count_max { break; }
+                        let (w, t) = &key;
+                        if w != &slot.weight || !slot.accepts_type(t) { continue; }
+                        let avail = *sim.get(&key).unwrap_or(&0);
+                        let want = (slot.count_max as usize) - taken as usize;
+                        let take = avail.min(want);
+                        if take > 0 {
+                            *sim.get_mut(&key).unwrap() -= take;
+                            taken += take as i32;
+                        }
+                    }
+                    consumed += taken;
+                }
+                consumed
+            });
+
+        if let Some(tws) = best_catchall {
+            deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            deduct_from_pool_by_type(tws, &mut pool_by_type, post_templates);
+            selected.push((&tws.config, tws));
+            spillover_rows += 1;
+            if spillover_rows > 20 {
+                break; // Safety net to prevent infinite loops
+            }
+        } else {
+            break;
+        }
+    }
+
+    if spillover_rows > 0 {
+        tracing::info!(
+            spillover_rows = spillover_rows,
+            total_rows = selected.len(),
+            "Layout engine: Phase 4 spillover packed remaining content"
+        );
+    }
+
     selected
 }
 
@@ -857,7 +927,7 @@ where
             continue;
         }
 
-        // Score by how many slots can be filled
+        // Score by how many slots can be filled up to their count_max.
         let mut score = 0usize;
         let mut h = heavy;
         let mut m = medium;
@@ -870,7 +940,7 @@ where
                 "light" => &mut l,
                 _ => continue,
             };
-            let consume = (slot.count as usize).min(*available);
+            let consume = (slot.count_max as usize).min(*available);
             score += consume;
             *available -= consume;
         }
@@ -879,10 +949,11 @@ where
             continue;
         }
 
-        // Check that ALL slots can be filled (avoid partial rows)
-        let total_needed: usize = tws.slots.iter().map(|s| s.count as usize).sum();
-        if score < total_needed {
-            continue; // Can't fully fill this template
+        // Check that each slot meets its count_min (not count_max). This
+        // allows flexible templates to pass even when the pool is small.
+        let total_min_needed: usize = tws.slots.iter().map(|s| s.count_min as usize).sum();
+        if score < total_min_needed {
+            continue;
         }
 
         // Type-compatibility pre-check: ensure each slot can find enough posts
@@ -972,7 +1043,9 @@ fn deduct_slots(tws: &RowTemplateWithSlots, heavy: &mut usize, medium: &mut usiz
 /// respecting both weight AND post_type/template compatibility. Simulates
 /// consumption greedily on a cloned pool — does not mutate the input.
 ///
-/// Returns true iff every slot has enough matching posts available.
+/// Each slot must find at least `count_min` compatible posts. The row
+/// will consume up to `count_max` when actually filled. Returns true iff
+/// every slot meets its count_min.
 fn can_fill_template(
     tws: &RowTemplateWithSlots,
     pool_by_type: &HashMap<(String, String), usize>,
@@ -980,10 +1053,12 @@ fn can_fill_template(
 ) -> bool {
     let mut remaining = pool_by_type.clone();
     for slot in &tws.slots {
-        let mut need = slot.count as usize;
+        // Simulate taking up to count_max so the remaining pool reflects
+        // what would actually be consumed.
+        let mut taken = 0usize;
         let keys: Vec<(String, String)> = remaining.keys().cloned().collect();
         for key in keys {
-            if need == 0 {
+            if taken >= slot.count_max as usize {
                 break;
             }
             let (w, t) = &key;
@@ -993,7 +1068,6 @@ fn can_fill_template(
             if !slot.accepts_type(t) {
                 continue;
             }
-            // Verify a compatible post_template exists for this (slot,type)
             let pt_compat = if let Some(ref tmpl_slug) = slot.post_template_slug {
                 post_templates
                     .iter()
@@ -1005,13 +1079,15 @@ fn can_fill_template(
                 continue;
             }
             let avail = *remaining.get(&key).unwrap_or(&0);
-            let take = avail.min(need);
+            let want = (slot.count_max as usize) - taken;
+            let take = avail.min(want);
             if take > 0 {
                 *remaining.get_mut(&key).unwrap() -= take;
-                need -= take;
+                taken += take;
             }
         }
-        if need > 0 {
+        // Row can emit if slot reaches its minimum.
+        if taken < slot.count_min as usize {
             return false;
         }
     }
@@ -1027,7 +1103,9 @@ fn deduct_from_pool_by_type(
     post_templates: &[PostTemplateConfig],
 ) {
     for slot in &tws.slots {
-        let mut need = slot.count as usize;
+        // Optimistic deduction: consume up to count_max. This mirrors what
+        // fill_slot_group will do when the row is actually built.
+        let mut need = slot.count_max as usize;
         let keys: Vec<(String, String)> = pool_by_type.keys().cloned().collect();
         for key in keys {
             if need == 0 {
