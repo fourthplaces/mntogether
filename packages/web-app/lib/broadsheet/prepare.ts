@@ -25,37 +25,54 @@ import type { BroadsheetPost, BroadsheetContact } from '@/gql/graphql';
 import { computeRenderHints } from './render-hints';
 import { formatPostDate } from './dates';
 
-// Post template configs from the CMS — mirrors post_template_configs seed data
-const TEMPLATE_CONFIGS: Record<string, { bodyTarget: number; bodyMax: number }> = {
-  feature:              { bodyTarget: 400, bodyMax: 600 },
-  'feature-reversed':   { bodyTarget: 350, bodyMax: 500 },
-  gazette:              { bodyTarget: 160, bodyMax: 250 },
-  ledger:               { bodyTarget: 120, bodyMax: 180 },
-  bulletin:             { bodyTarget: 80, bodyMax: 120 },
-  ticker:               { bodyTarget: 60, bodyMax: 80 },
-  digest:               { bodyTarget: 100, bodyMax: 150 },
-  // Specialty templates (from migration 000182)
-  'alert-notice':       { bodyTarget: 180, bodyMax: 240 },
-  'pinboard-exchange':  { bodyTarget: 180, bodyMax: 240 },
-  'card-event':         { bodyTarget: 160, bodyMax: 220 },
-  'quick-ref':          { bodyTarget: 0, bodyMax: 0 },
-  'directory-ref':      { bodyTarget: 0, bodyMax: 0 },
-  'generous-exchange':  { bodyTarget: 180, bodyMax: 240 },
-  'whisper-notice':     { bodyTarget: 120, bodyMax: 160 },
-  'spotlight-local':    { bodyTarget: 180, bodyMax: 240 },
-  'ticker-update':      { bodyTarget: 0, bodyMax: 0 },
-};
+/**
+ * Shape of the per-template config needed by preparePost / enforceBodyLimits.
+ * Map is fetched from GraphQL (PostTemplateConfigsQuery) and threaded through
+ * BroadsheetRenderer → SlotRenderer → preparePost.
+ */
+export type PostTemplateConfigMap = Record<string, {
+  bodyTarget: number;
+  bodyMax: number;
+}>;
+
+/**
+ * Fallback config used if the API hasn't loaded yet OR the template is
+ * unknown. Intentionally conservative — enough to render something
+ * without crashing; real limits come from the DB via GraphQL.
+ */
+const FALLBACK_CONFIG = { bodyTarget: 160, bodyMax: 250 };
+
+/**
+ * Build a slug-keyed config map from the PostTemplateConfigsQuery result.
+ * Returns undefined if the query hasn't resolved yet (preparePost falls
+ * back to FALLBACK_CONFIG per lookup).
+ */
+export function buildTemplateConfigMap(
+  templates: ReadonlyArray<{ slug: string; bodyTarget: number; bodyMax: number }> | undefined | null,
+): PostTemplateConfigMap | undefined {
+  if (!templates || templates.length === 0) return undefined;
+  const map: PostTemplateConfigMap = {};
+  for (const t of templates) {
+    map[t.slug] = { bodyTarget: t.bodyTarget, bodyMax: t.bodyMax };
+  }
+  return map;
+}
 
 /**
  * Convert a GraphQL BroadsheetPost + its assigned post template
  * into the broadsheet Post interface for component rendering.
+ *
+ * `templateConfigs` is the result of PostTemplateConfigsQuery, passed in
+ * by the page (BroadsheetRenderer threads it through). When missing or
+ * the template slug isn't found, a sensible fallback is used.
  */
 export function preparePost(
   gqlPost: BroadsheetPost,
   postTemplate: string,
   isAnchor?: boolean,
+  templateConfigs?: PostTemplateConfigMap,
 ): Post {
-  const config = TEMPLATE_CONFIGS[postTemplate] ?? TEMPLATE_CONFIGS.gazette;
+  const config = templateConfigs?.[postTemplate] ?? FALLBACK_CONFIG;
   const isFeature = postTemplate === 'feature' || postTemplate === 'feature-reversed';
 
   // Tags: extract tag values as string[] for the broadsheet type system
@@ -79,7 +96,11 @@ export function preparePost(
     : selectWeightBody(gqlPost, postTemplate)
   ) ?? gqlPost.bodyRaw;
   // Anchors use bodyHeavy, so enforce against feature-level limits (not the template's own)
-  const { html: bodyHtml, compact } = enforceBodyLimits(rawBody, isAnchor ? 'feature' : postTemplate);
+  const { html: bodyHtml, compact } = enforceBodyLimits(
+    rawBody,
+    isAnchor ? 'feature' : postTemplate,
+    templateConfigs,
+  );
   const paragraphs = splitParagraphs(bodyHtml);
 
   // Compute clamp based on template body target (chars → approximate line count)
@@ -333,9 +354,10 @@ const TEMPLATE_WEIGHT_TIER: Record<string, 'heavy' | 'medium' | 'light'> = {
  */
 function enforceBodyLimits(
   body: string,
-  postTemplate: string
+  postTemplate: string,
+  templateConfigs?: PostTemplateConfigMap,
 ): { html: string; compact?: boolean } {
-  const config = TEMPLATE_CONFIGS[postTemplate] ?? TEMPLATE_CONFIGS.gazette;
+  const config = templateConfigs?.[postTemplate] ?? FALLBACK_CONFIG;
   if (config.bodyMax === 0) return { html: body };
 
   // Strip HTML tags for character counting

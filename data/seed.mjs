@@ -110,18 +110,13 @@ out("");
 
 // --- Posts -----------------------------------------------------------------
 
-// Clean up any previous seed run. The seeder emits posts with every
-// submission_type that exists: 'admin', 'ingested', 'org_submitted',
-// 'reader_submitted'. Posts has no unique constraint so ON CONFLICT is
-// a no-op; without this wipe, re-runs accumulate duplicates (we've seen
-// 3× multiplication on org_submitted/reader_submitted in practice).
-//
-// This is dev-only seed data — production databases shouldn't run this
-// seeder. If a developer has real local submissions they want to keep,
-// they should save them before re-seeding.
-out("-- Clean ALL previous seed data");
-out("DELETE FROM edition_slots WHERE post_id IN (SELECT id FROM posts WHERE deleted_at IS NULL);");
-out("DELETE FROM posts WHERE deleted_at IS NULL;");
+// Clean up any previous seed run. Only deletes posts marked `is_seed = true`
+// so real user-submitted content in a dev database is preserved. Every
+// post the seeder inserts is flagged is_seed=true — so this DELETE is
+// scoped to seeder-owned rows only.
+out("-- Clean previous seed data (only is_seed rows — real user content preserved)");
+out("DELETE FROM edition_slots WHERE post_id IN (SELECT id FROM posts WHERE is_seed = true);");
+out("DELETE FROM posts WHERE is_seed = true;");
 out("");
 
 out("-- Posts");
@@ -158,7 +153,7 @@ for (const p of posts) {
 
   out(`WITH post AS (`);
   out(
-    `    INSERT INTO posts (title, body_raw, body_heavy, body_medium, body_light, post_type, weight, priority, status, submission_type, published_at, location, zip_code, is_urgent, pencil_mark, is_evergreen)`
+    `    INSERT INTO posts (title, body_raw, body_heavy, body_medium, body_light, post_type, weight, priority, status, submission_type, published_at, location, zip_code, is_urgent, pencil_mark, is_evergreen, is_seed)`
   );
   out(`    VALUES (`);
   out(`        ${esc(p.title)},`);
@@ -167,7 +162,7 @@ for (const p of posts) {
   out(`        ${esc(p.bodyMedium || null)},`);
   out(`        ${esc(p.bodyLight || null)},`);
   out(
-    `        ${esc(p.postType)}, ${esc(p.weight)}, ${p.priority}, 'active', ${esc(submissionType)}, ${publishedAt}, ${esc(p.location || null)}, ${esc(p.zipCode || null)}, ${p.is_urgent ? "true" : "false"}, ${esc(p.pencilMark || null)}, ${isEvergreen ? "true" : "false"}`
+    `        ${esc(p.postType)}, ${esc(p.weight)}, ${p.priority}, 'active', ${esc(submissionType)}, ${publishedAt}, ${esc(p.location || null)}, ${esc(p.zipCode || null)}, ${p.is_urgent ? "true" : "false"}, ${esc(p.pencilMark || null)}, ${isEvergreen ? "true" : "false"}, true`
   );
   out(`    )`);
   out(`    ON CONFLICT DO NOTHING RETURNING id`);

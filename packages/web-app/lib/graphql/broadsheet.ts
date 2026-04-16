@@ -1,5 +1,24 @@
 import { graphql } from "@/gql";
 
+/**
+ * Post template configs — body length limits, title limits, weight, type
+ * compatibility. Fetched once at page-level and threaded into preparePost
+ * so the renderer doesn't hardcode a duplicate of post_template_configs.
+ */
+export const PostTemplateConfigsQuery = graphql(`
+  query PostTemplateConfigs {
+    postTemplates {
+      id
+      slug
+      bodyTarget
+      bodyMax
+      titleMax
+      weight
+      compatibleTypes
+    }
+  }
+`);
+
 export const EditionPreviewQuery = graphql(`
   query EditionPreview($editionId: ID!) {
     editionPreview(editionId: $editionId) {

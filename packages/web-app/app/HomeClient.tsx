@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "urql";
-import { PublicBroadsheetQuery } from "@/lib/graphql/broadsheet";
+import { PublicBroadsheetQuery, PostTemplateConfigsQuery } from "@/lib/graphql/broadsheet";
 import { PublicFiltersQuery } from "@/lib/graphql/public";
 import { BroadsheetRenderer, PostcardWelcome, SiteFooter } from "@/components/broadsheet";
+import { buildTemplateConfigMap } from "@/lib/broadsheet/prepare";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { PostFeed } from "@/components/PostFeed";
@@ -19,6 +20,9 @@ export function HomeClient() {
     variables: { countyId: DEFAULT_COUNTY_ID },
   });
 
+  const [{ data: templatesData }] = useQuery({ query: PostTemplateConfigsQuery });
+  const templateConfigs = buildTemplateConfigMap(templatesData?.postTemplates);
+
   const edition = broadsheetData?.publicBroadsheet;
 
   // Broadsheet loaded — render the full newspaper experience
@@ -27,7 +31,7 @@ export function HomeClient() {
     return (
       <div className="broadsheet-page">
         <PostcardWelcome />
-        <BroadsheetRenderer edition={edition} />
+        <BroadsheetRenderer edition={edition} templateConfigs={templateConfigs} />
         <SiteFooter />
       </div>
     );

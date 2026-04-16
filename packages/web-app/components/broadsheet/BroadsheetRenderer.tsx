@@ -16,7 +16,7 @@ import { Row, Cell, NewspaperFrame, DebugLabels } from '@/components/broadsheet'
 import { getRowLayout, distributeSlots } from '@/lib/broadsheet/row-map';
 import { resolveTemplate } from '@/lib/broadsheet/templates';
 import { resolveWidget } from '@/lib/broadsheet/widget-resolver';
-import { preparePost } from '@/lib/broadsheet/prepare';
+import { preparePost, type PostTemplateConfigMap } from '@/lib/broadsheet/prepare';
 
 type BroadsheetData = NonNullable<PublicBroadsheetQuery['publicBroadsheet']>;
 type BroadsheetRowData = BroadsheetData['rows'][number];
@@ -24,9 +24,16 @@ type BroadsheetSlotData = BroadsheetRowData['slots'][number];
 
 interface BroadsheetRendererProps {
   edition: BroadsheetData;
+  /**
+   * Post template configs (body_target, body_max) keyed by slug. Fetched
+   * via PostTemplateConfigsQuery at the page level and threaded in so
+   * preparePost can enforce body limits from the DB rather than a
+   * hardcoded duplicate. When omitted, a conservative fallback is used.
+   */
+  templateConfigs?: PostTemplateConfigMap;
 }
 
-export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
+export function BroadsheetRenderer({ edition, templateConfigs }: BroadsheetRendererProps) {
   // Render ALL rows in sort_order — flat, no section grouping.
   // Sections are kept as advisory metadata for the admin editor but
   // don't affect public rendering. Visual breaks come from SectionSep
@@ -58,7 +65,7 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
 
       {/* All rows in sort_order — widgets and posts interleaved */}
       {rows.map((row, idx) => (
-        <BroadsheetRow key={`row-${idx}`} row={row} />
+        <BroadsheetRow key={`row-${idx}`} row={row} templateConfigs={templateConfigs} />
       ))}
     </NewspaperFrame>
   );
@@ -68,7 +75,7 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
 // Row renderer
 // =============================================================================
 
-function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
+function BroadsheetRow({ row, templateConfigs }: { row: BroadsheetRowData; templateConfigs?: PostTemplateConfigMap }) {
   // Widget-standalone rows render the widget directly without Row/Cell wrapper
   if (row.layoutVariant === 'widget-standalone') {
     const widgetSlot = row.slots.find((s) => s.kind === 'widget');
@@ -109,7 +116,12 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
       {cellSlots.map((slots, cellIdx) => (
         <Cell key={cellIdx} span={layout.cells[cellIdx]}>
           {slots.map((slot) => (
-            <SlotRenderer key={slot.post!.id} slot={slot} isAnchor={cellIdx === 0 && slots.length === 1} />
+            <SlotRenderer
+              key={slot.post!.id}
+              slot={slot}
+              isAnchor={cellIdx === 0 && slots.length === 1}
+              templateConfigs={templateConfigs}
+            />
           ))}
         </Cell>
       ))}
@@ -121,7 +133,15 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
 // Slot renderer — resolves template + type → component, prepares post data
 // =============================================================================
 
-function SlotRenderer({ slot, isAnchor }: { slot: BroadsheetSlotData; isAnchor?: boolean }) {
+function SlotRenderer({
+  slot,
+  isAnchor,
+  templateConfigs,
+}: {
+  slot: BroadsheetSlotData;
+  isAnchor?: boolean;
+  templateConfigs?: PostTemplateConfigMap;
+}) {
   if (slot.kind === 'widget' && slot.widget) {
     return <WidgetRenderer widget={slot.widget} widgetTemplate={slot.widgetTemplate ?? undefined} />;
   }
@@ -129,7 +149,7 @@ function SlotRenderer({ slot, isAnchor }: { slot: BroadsheetSlotData; isAnchor?:
   if (!slot.post || !slot.postTemplate) return null;
 
   const Component = resolveTemplate(slot.postTemplate, slot.post.postType);
-  const post = preparePost(slot.post, slot.postTemplate, isAnchor);
+  const post = preparePost(slot.post, slot.postTemplate, isAnchor, templateConfigs);
 
   // "Linked card" pattern: the whole card is clickable to the post detail page,
   // but inner interactive elements (CTA buttons, external links in references)

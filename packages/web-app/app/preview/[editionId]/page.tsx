@@ -3,8 +3,9 @@
 import { useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "urql";
-import { EditionPreviewQuery } from "@/lib/graphql/broadsheet";
+import { EditionPreviewQuery, PostTemplateConfigsQuery } from "@/lib/graphql/broadsheet";
 import { BroadsheetRenderer, SiteFooter } from "@/components/broadsheet";
+import { buildTemplateConfigMap } from "@/lib/broadsheet/prepare";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
@@ -22,6 +23,14 @@ export default function PreviewPage() {
     variables: { editionId },
     pause: !editionId,
   });
+
+  // Template configs are independent of the edition — fetched once
+  // and threaded into the renderer so preparePost can enforce body
+  // limits from the DB rather than a hardcoded duplicate.
+  const [{ data: templatesData }] = useQuery({
+    query: PostTemplateConfigsQuery,
+  });
+  const templateConfigs = buildTemplateConfigMap(templatesData?.postTemplates);
 
   const handleRefresh = useCallback(() => {
     reexecuteQuery({ requestPolicy: "network-only" });
@@ -108,7 +117,7 @@ export default function PreviewPage() {
           </button>
         </div>
       </div>
-      <BroadsheetRenderer edition={edition} />
+      <BroadsheetRenderer edition={edition} templateConfigs={templateConfigs} />
       <SiteFooter />
     </div>
   );
