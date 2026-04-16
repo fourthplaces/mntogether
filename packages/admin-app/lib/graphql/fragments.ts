@@ -46,6 +46,7 @@ export const PostDetailFields = graphql(`
     submissionType
     weight
     priority
+    pencilMark
     hasUrgentNotes
     bodyHeavy
     bodyMedium
@@ -121,6 +122,7 @@ export const PostDetailFields = graphql(`
       verified
     }
     schedule {
+      id
       day
       opens
       closes

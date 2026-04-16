@@ -334,6 +334,8 @@ pub struct UpdatePostContent {
     #[builder(default)]
     pub is_urgent: Option<bool>,
     #[builder(default)]
+    pub pencil_mark: Option<String>,
+    #[builder(default)]
     pub location: Option<String>,
     #[builder(default)]
     pub zip_code: Option<String>,
@@ -752,8 +754,9 @@ impl Post {
                 weight = COALESCE($6, weight),
                 priority = COALESCE($7, priority),
                 is_urgent = COALESCE($8, is_urgent),
-                location = CASE WHEN $9 = '' THEN NULL WHEN $9 IS NOT NULL THEN $9 ELSE location END,
-                zip_code = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE zip_code END,
+                pencil_mark = CASE WHEN $9 = '' THEN NULL WHEN $9 IS NOT NULL THEN $9 ELSE pencil_mark END,
+                location = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE location END,
+                zip_code = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE zip_code END,
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -767,6 +770,7 @@ impl Post {
         .bind(input.weight)
         .bind(input.priority)
         .bind(input.is_urgent)
+        .bind(input.pencil_mark)
         .bind(input.location)
         .bind(input.zip_code)
         .fetch_one(pool)

@@ -323,3 +323,9 @@ export const UpsertPostStatusMutation = graphql(`
   }
 `);
 
+export const UpsertPostItemsMutation = graphql(`
+  mutation UpsertPostItems($postId: ID!, $items: [PostItemInput!]!) {
+    upsertPostItems(postId: $postId, items: $items)
+  }
+`);
+

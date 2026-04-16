@@ -111,6 +111,7 @@ type Mutation {
   upsertPostSourceAttr(postId: ID!, sourceName: String, attribution: String): Boolean!
   upsertPostDatetime(postId: ID!, startAt: String, endAt: String, cost: String, recurring: Boolean): Boolean!
   upsertPostStatus(postId: ID!, state: String, verified: String): Boolean!
+  upsertPostItems(postId: ID!, items: [PostItemInput!]!): Boolean!
 
   # Organizations (admin)
   createOrganization(name: String!, description: String, sourceType: String): Organization!
@@ -696,6 +697,7 @@ type BroadsheetStatus {
 }
 
 type BroadsheetScheduleEntry {
+  id: ID
   day: String!
   opens: String!
   closes: String!
@@ -721,10 +723,17 @@ input UpdatePostInput {
   weight: String
   priority: Int
   urgency: String
+  isUrgent: Boolean
+  pencilMark: String
   location: String
   zipCode: String
   sourceUrl: String
   organizationId: ID
+}
+
+input PostItemInput {
+  name: String!
+  detail: String
 }
 
 input AddScheduleInput {

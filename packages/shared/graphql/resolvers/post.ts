@@ -350,6 +350,8 @@ export const postResolvers = {
           weight?: string;
           priority?: number;
           urgency?: string;
+          isUrgent?: boolean;
+          pencilMark?: string;
           location?: string;
           zipCode?: string;
           sourceUrl?: string;
@@ -367,6 +369,8 @@ export const postResolvers = {
         weight: args.input.weight,
         priority: args.input.priority,
         urgency: args.input.urgency,
+        is_urgent: args.input.isUrgent,
+        pencil_mark: args.input.pencilMark,
         location: args.input.location,
         zip_code: args.input.zipCode,
         source_url: args.input.sourceUrl,
@@ -467,6 +471,18 @@ export const postResolvers = {
         state: args.state,
         verified: args.verified,
       });
+      return true;
+    },
+
+    upsertPostItems: async (
+      _parent: unknown,
+      args: { postId: string; items: Array<{ name: string; detail?: string | null }> },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Post", `${args.postId}/upsert_items`, {
+        items: args.items.map((i) => ({ name: i.name, detail: i.detail ?? null })),
+      });
+      ctx.loaders.postById.clear(args.postId);
       return true;
     },
 

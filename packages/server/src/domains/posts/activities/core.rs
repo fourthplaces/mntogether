@@ -344,6 +344,7 @@ pub async fn admin_update_post(
     weight: Option<String>,
     priority: Option<i32>,
     is_urgent: Option<bool>,
+    pencil_mark: Option<String>,
     location: Option<String>,
     zip_code: Option<String>,
     _member_id: Uuid,
@@ -362,6 +363,7 @@ pub async fn admin_update_post(
             .weight(weight)
             .priority(priority)
             .is_urgent(is_urgent)
+            .pencil_mark(pencil_mark)
             .location(location)
             .zip_code(zip_code)
             .build(),

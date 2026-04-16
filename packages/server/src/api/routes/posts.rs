@@ -279,6 +279,7 @@ pub struct UpdatePostContentRequest {
     pub weight: Option<String>,
     pub priority: Option<i32>,
     pub is_urgent: Option<bool>,
+    pub pencil_mark: Option<String>,
     pub location: Option<String>,
     pub zip_code: Option<String>,
 }
@@ -2046,6 +2047,7 @@ async fn update_content(
         req.weight,
         req.priority,
         req.is_urgent,
+        req.pencil_mark,
         req.location,
         req.zip_code,
         user.0.member_id.into_uuid(),
@@ -2356,6 +2358,22 @@ async fn upsert_post_status(
     Ok(Json(FieldGroupResult { success: true }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostItemsRequest {
+    pub items: Vec<crate::domains::posts::models::PostItemInput>,
+}
+
+async fn upsert_post_items(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostItemsRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    crate::domains::posts::models::PostItem::replace_all(post_id, &req.items, pool).await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
 // =============================================================================
 // Router
 // =============================================================================
@@ -2417,4 +2435,5 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/upsert_source_attr", post(upsert_post_source_attr))
         .route("/Post/{id}/upsert_datetime", post(upsert_post_datetime))
         .route("/Post/{id}/upsert_status", post(upsert_post_status))
+        .route("/Post/{id}/upsert_items", post(upsert_post_items))
 }
