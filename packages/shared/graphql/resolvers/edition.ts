@@ -65,6 +65,7 @@ interface EditionSlotData {
   id: string;
   kind: string;
   slotIndex: number;
+  sortOrder: number;
   // Post fields (present when kind='post')
   postId?: string;
   postTemplate?: string;
@@ -719,13 +720,14 @@ export const editionResolvers = {
 
     moveSlot: async (
       _parent: unknown,
-      args: { slotId: string; targetRowId: string; slotIndex: number },
+      args: { slotId: string; targetRowId: string; slotIndex: number; sortOrder?: number | null },
       ctx: GraphQLContext
     ) => {
       return ctx.server.callService("Editions", "move_slot", {
         slot_id: args.slotId,
         target_row_id: args.targetRowId,
         slot_index: args.slotIndex,
+        sort_order: args.sortOrder ?? null,
       });
     },
 

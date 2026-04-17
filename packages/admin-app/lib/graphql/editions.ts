@@ -182,6 +182,7 @@ export const EditionDetailQuery = graphql(`
             data
           }
           slotIndex
+          sortOrder
         }
       }
     }
@@ -309,8 +310,8 @@ export const ChangeSlotTemplateMutation = graphql(`
 `);
 
 export const MoveSlotMutation = graphql(`
-  mutation MoveSlot($slotId: ID!, $targetRowId: ID!, $slotIndex: Int!) {
-    moveSlot(slotId: $slotId, targetRowId: $targetRowId, slotIndex: $slotIndex) {
+  mutation MoveSlot($slotId: ID!, $targetRowId: ID!, $slotIndex: Int!, $sortOrder: Int) {
+    moveSlot(slotId: $slotId, targetRowId: $targetRowId, slotIndex: $slotIndex, sortOrder: $sortOrder) {
       id
       slotIndex
       postTemplate

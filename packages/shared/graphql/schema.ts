@@ -157,7 +157,7 @@ type Mutation {
   batchPublishEditions(ids: [ID!]!): BatchEditionsResult!
   updateEditionRow(rowId: ID!, rowTemplateSlug: String, sortOrder: Int): EditionRow!
   reorderEditionRows(editionId: ID!, rowIds: [ID!]!): [EditionRow!]!
-  moveSlot(slotId: ID!, targetRowId: ID!, slotIndex: Int!): EditionSlot!
+  moveSlot(slotId: ID!, targetRowId: ID!, slotIndex: Int!, sortOrder: Int): EditionSlot!
   addPostToEdition(editionRowId: ID!, postId: ID!, postTemplate: String!, slotIndex: Int!): EditionSlot!
   addEditionRow(editionId: ID!, rowTemplateSlug: String!, sortOrder: Int!): EditionRow!
   deleteEditionRow(rowId: ID!): Boolean!
@@ -501,6 +501,7 @@ type EditionSlot {
   id: ID!
   kind: String!
   slotIndex: Int!
+  sortOrder: Int!
   post: Post
   postTemplate: String
   widget: Widget

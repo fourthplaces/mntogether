@@ -14,6 +14,7 @@ pub struct EditionSlot {
     pub post_template: Option<String>,
     pub widget_template: Option<String>,
     pub slot_index: i32,
+    pub sort_order: i32,
     pub created_at: DateTime<Utc>,
 }
 
@@ -28,6 +29,7 @@ pub struct SlotWithPost {
     pub post_template: Option<String>,
     pub widget_template: Option<String>,
     pub slot_index: i32,
+    pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     // Post fields (joined from posts table, nullable for widget slots)
     pub post_title: Option<String>,
@@ -41,7 +43,9 @@ pub struct SlotWithPost {
 }
 
 impl EditionSlot {
-    /// Create a new post slot.
+    /// Create a new post slot. `sort_order` defaults to one past the current
+    /// max within the (row, slot_index) group so the new slot lands at the
+    /// bottom of its visual cell.
     pub async fn create(
         edition_row_id: Uuid,
         post_id: Uuid,
@@ -49,10 +53,11 @@ impl EditionSlot {
         slot_index: i32,
         pool: &PgPool,
     ) -> Result<Self> {
+        let sort_order = Self::next_sort_order(edition_row_id, slot_index, pool).await?;
         sqlx::query_as::<_, Self>(
             r#"
-            INSERT INTO edition_slots (edition_row_id, kind, post_id, post_template, slot_index)
-            VALUES ($1, 'post', $2, $3, $4)
+            INSERT INTO edition_slots (edition_row_id, kind, post_id, post_template, slot_index, sort_order)
+            VALUES ($1, 'post', $2, $3, $4, $5)
             RETURNING *
             "#,
         )
@@ -60,6 +65,7 @@ impl EditionSlot {
         .bind(post_id)
         .bind(post_template)
         .bind(slot_index)
+        .bind(sort_order)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -73,10 +79,11 @@ impl EditionSlot {
         slot_index: i32,
         pool: &PgPool,
     ) -> Result<Self> {
+        let sort_order = Self::next_sort_order(edition_row_id, slot_index, pool).await?;
         sqlx::query_as::<_, Self>(
             r#"
-            INSERT INTO edition_slots (edition_row_id, kind, widget_id, widget_template, slot_index)
-            VALUES ($1, 'widget', $2, $3, $4)
+            INSERT INTO edition_slots (edition_row_id, kind, widget_id, widget_template, slot_index, sort_order)
+            VALUES ($1, 'widget', $2, $3, $4, $5)
             RETURNING *
             "#,
         )
@@ -84,15 +91,33 @@ impl EditionSlot {
         .bind(widget_id)
         .bind(widget_template)
         .bind(slot_index)
+        .bind(sort_order)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
     }
 
-    /// Find all slots in a specific row, ordered by slot_index.
+    /// Next free `sort_order` value for a (row, slot_index) pair.
+    async fn next_sort_order(
+        edition_row_id: Uuid,
+        slot_index: i32,
+        pool: &PgPool,
+    ) -> Result<i32> {
+        let max: Option<i32> = sqlx::query_scalar(
+            "SELECT MAX(sort_order) FROM edition_slots WHERE edition_row_id = $1 AND slot_index = $2",
+        )
+        .bind(edition_row_id)
+        .bind(slot_index)
+        .fetch_one(pool)
+        .await?;
+        Ok(max.map(|n| n + 1).unwrap_or(0))
+    }
+
+    /// Find all slots in a specific row, ordered by slot_index then sort_order.
+    /// `created_at, id` remain as tiebreakers for robustness.
     pub async fn find_by_row(edition_row_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM edition_slots WHERE edition_row_id = $1 ORDER BY slot_index ASC",
+            "SELECT * FROM edition_slots WHERE edition_row_id = $1 ORDER BY slot_index ASC, sort_order ASC, created_at ASC, id ASC",
         )
         .bind(edition_row_id)
         .fetch_all(pool)
@@ -108,7 +133,7 @@ impl EditionSlot {
             FROM edition_slots es
             INNER JOIN edition_rows er ON es.edition_row_id = er.id
             WHERE er.edition_id = $1
-            ORDER BY er.sort_order ASC, es.slot_index ASC
+            ORDER BY er.sort_order ASC, es.slot_index ASC, es.sort_order ASC, es.created_at ASC, es.id ASC
             "#,
         )
         .bind(edition_id)
@@ -117,17 +142,59 @@ impl EditionSlot {
         .map_err(Into::into)
     }
 
-    /// Move a slot to a different row / position.
+    /// Move a slot to a different row / position. When `sort_order` is provided,
+    /// the slot is inserted at that position within the target (row, slot_index)
+    /// group and siblings at or after that position are bumped down by 1. When
+    /// None, the slot lands at the end of the target cell.
     pub async fn move_to(
         id: Uuid,
         target_row_id: Uuid,
         slot_index: i32,
+        sort_order: Option<i32>,
         pool: &PgPool,
     ) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
+        let mut tx = pool.begin().await?;
+
+        // Determine the target sort_order — if unspecified, append to end.
+        let resolved_sort_order: i32 = match sort_order {
+            Some(n) => n,
+            None => {
+                let max: Option<i32> = sqlx::query_scalar(
+                    "SELECT MAX(sort_order) FROM edition_slots WHERE edition_row_id = $1 AND slot_index = $2 AND id <> $3",
+                )
+                .bind(target_row_id)
+                .bind(slot_index)
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await?;
+                max.map(|n| n + 1).unwrap_or(0)
+            }
+        };
+
+        // Bump existing siblings at or after the target sort_order to make room
+        // (exclude the slot being moved, in case it's already in the target cell).
+        sqlx::query(
             r#"
             UPDATE edition_slots
-            SET edition_row_id = $2, slot_index = $3
+            SET sort_order = sort_order + 1
+            WHERE edition_row_id = $1
+              AND slot_index = $2
+              AND id <> $3
+              AND sort_order >= $4
+            "#,
+        )
+        .bind(target_row_id)
+        .bind(slot_index)
+        .bind(id)
+        .bind(resolved_sort_order)
+        .execute(&mut *tx)
+        .await?;
+
+        // Move the slot and set its new position.
+        let slot = sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE edition_slots
+            SET edition_row_id = $2, slot_index = $3, sort_order = $4
             WHERE id = $1
             RETURNING *
             "#,
@@ -135,9 +202,37 @@ impl EditionSlot {
         .bind(id)
         .bind(target_row_id)
         .bind(slot_index)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+        .bind(resolved_sort_order)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Compact sort_order values in the target cell so they're dense (0..n).
+        sqlx::query(
+            r#"
+            WITH ordered AS (
+              SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order ASC, created_at ASC, id ASC) - 1 AS new_order
+              FROM edition_slots
+              WHERE edition_row_id = $1 AND slot_index = $2
+            )
+            UPDATE edition_slots es
+            SET sort_order = ordered.new_order::int
+            FROM ordered
+            WHERE es.id = ordered.id AND es.sort_order <> ordered.new_order::int
+            "#,
+        )
+        .bind(target_row_id)
+        .bind(slot_index)
+        .execute(&mut *tx)
+        .await?;
+
+        // Re-fetch the slot because compaction may have renumbered it.
+        let slot = sqlx::query_as::<_, Self>("SELECT * FROM edition_slots WHERE id = $1")
+            .bind(slot.id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(slot)
     }
 
     /// Change the post template (visual treatment) for a post slot.
@@ -175,7 +270,7 @@ impl EditionSlot {
             r#"
             SELECT
                 es.id, es.edition_row_id, es.kind, es.post_id, es.widget_id,
-                es.post_template, es.widget_template, es.slot_index, es.created_at,
+                es.post_template, es.widget_template, es.slot_index, es.sort_order, es.created_at,
                 p.title AS post_title,
                 p.post_type AS post_post_type,
                 p.weight AS post_weight,
@@ -187,7 +282,7 @@ impl EditionSlot {
             LEFT JOIN posts p ON p.id = es.post_id
             LEFT JOIN widgets w ON w.id = es.widget_id
             WHERE es.edition_row_id = $1
-            ORDER BY es.slot_index ASC
+            ORDER BY es.slot_index ASC, es.sort_order ASC, es.created_at ASC, es.id ASC
             "#,
         )
         .bind(edition_row_id)

@@ -118,6 +118,10 @@ pub struct MoveSlotRequest {
     pub slot_id: Uuid,
     pub target_row_id: Uuid,
     pub slot_index: i32,
+    /// Optional position within the target (row, slot_index) cell. When
+    /// omitted, the slot is appended to the end of the cell.
+    #[serde(default)]
+    pub sort_order: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -273,6 +277,7 @@ pub struct EditionSlotResult {
     pub id: Uuid,
     pub kind: String,
     pub slot_index: i32,
+    pub sort_order: i32,
     // Post fields (present when kind='post')
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_id: Option<Uuid>,
@@ -618,6 +623,7 @@ async fn load_edition_detail(
                     id: s.id,
                     kind: s.kind.clone(),
                     slot_index: s.slot_index,
+                    sort_order: s.sort_order,
                     post_id: s.post_id,
                     post_template: s.post_template.clone(),
                     post_title: s.post_title.clone(),
@@ -688,6 +694,7 @@ async fn build_row_result(
                 id: s.id,
                 kind: s.kind.clone(),
                 slot_index: s.slot_index,
+                sort_order: s.sort_order,
                 post_id: s.post_id,
                 post_template: s.post_template.clone(),
                 post_title: s.post_title.clone(),
@@ -716,6 +723,7 @@ async fn slot_with_content_data(
             id: s.id,
             kind: s.kind,
             slot_index: s.slot_index,
+            sort_order: s.sort_order,
             post_id: s.post_id,
             post_template: s.post_template,
             post_title: s.post_title,
@@ -731,6 +739,7 @@ async fn slot_with_content_data(
             id: slot.id,
             kind: slot.kind.clone(),
             slot_index: slot.slot_index,
+            sort_order: slot.sort_order,
             post_id: slot.post_id,
             post_template: slot.post_template.clone(),
             post_title: None,
@@ -1117,6 +1126,7 @@ async fn reorder_rows(
                     id: s.id,
                     kind: s.kind.clone(),
                     slot_index: s.slot_index,
+                    sort_order: s.sort_order,
                     post_id: s.post_id,
                     post_template: s.post_template.clone(),
                     post_title: s.post_title.clone(),
@@ -1164,7 +1174,7 @@ async fn move_slot(
 ) -> ApiResult<Json<EditionSlotResult>> {
     let pool = &state.deps.db_pool;
     let slot =
-        EditionSlot::move_to(req.slot_id, req.target_row_id, req.slot_index, pool)
+        EditionSlot::move_to(req.slot_id, req.target_row_id, req.slot_index, req.sort_order, pool)
             .await?;
 
     let result = slot_with_content_data(&slot, pool).await?;

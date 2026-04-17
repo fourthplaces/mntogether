@@ -11,15 +11,20 @@ import {
   useSensor,
   useSensors,
   useDroppable,
-  useDraggable,
   closestCenter,
+  closestCorners,
+  pointerWithin,
+  rectIntersection,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -103,6 +108,7 @@ import {
 } from "@/lib/graphql/editions";
 import { EditionWidgetsQuery } from "@/lib/graphql/widgets";
 import { EditionPostsQuery } from "@/lib/graphql/posts";
+import { getRowLayout, distributeSlots, cellSpanClass } from "@/lib/broadsheet/row-layout";
 import type {
   EditionDetailQuery as EditionDetailQueryType,
   RowTemplatesQuery as RowTemplatesQueryType,
@@ -119,7 +125,6 @@ type TemplateSlotDef = EditionRow["rowTemplate"]["slots"][number];
 type RowTemplate = RowTemplatesQueryType["rowTemplates"][number];
 type PostTemplate = PostTemplatesQueryType["postTemplates"][number];
 
-const WEIGHT_SPAN: Record<string, number> = { heavy: 2, medium: 1, light: 1 };
 
 const EDITION_STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
@@ -613,6 +618,40 @@ function BroadsheetEditor({
         : [],
     [edition]
   );
+
+  // ── Optimistic slot state (multi-container DnD) ───────────────────────────
+  //
+  // For the visual "push siblings out of the way" behavior to work *across*
+  // cells and rows (not just within a single cell), we drive rendering from
+  // local state that we mutate during onDragOver as the user drags. The
+  // server sees the final committed state via moveSlot on drag end, and
+  // refetches re-seed this state when no drag is in flight.
+  //
+  // `slotOrder` keys are `${rowId}:${slotIndex}` and map to ordered slot IDs.
+
+  const [slotOrder, setSlotOrder] = useState<Record<string, string[]>>({});
+
+  const slotsById = useMemo(() => {
+    const byId = new Map<string, EditionSlot>();
+    if (!edition) return byId;
+    for (const row of edition.rows) {
+      for (const s of row.slots) {
+        byId.set(s.id, s);
+      }
+    }
+    return byId;
+  }, [edition]);
+
+  const slotLocations = useMemo(() => {
+    const map = new Map<string, { rowId: string; slotIndex: number; sortOrder: number }>();
+    if (!edition) return map;
+    for (const row of edition.rows) {
+      for (const s of row.slots) {
+        map.set(s.id, { rowId: row.id, slotIndex: s.slotIndex, sortOrder: s.sortOrder ?? 0 });
+      }
+    }
+    return map;
+  }, [edition]);
   // DnD
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -622,6 +661,122 @@ function BroadsheetEditor({
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [dragType, setDragType] = useState<"row" | "section" | "slot" | null>(null);
 
+  // Seed slotOrder from the server whenever edition data changes. Guarded by
+  // a ref (not a state dep) so we don't re-run the effect when `activeSlotId`
+  // toggles on drag end — at that moment `edition` may not yet reflect the
+  // just-committed move, and re-seeding would momentarily clobber optimistic
+  // state. When the refetch that follows moveSlot eventually lands, `edition`
+  // changes, this effect runs, and by then the ref has been cleared.
+  const isDraggingSlotRef = useRef(false);
+  useEffect(() => {
+    if (!edition) return;
+    if (isDraggingSlotRef.current) return;
+    const seed: Record<string, string[]> = {};
+    for (const row of edition.rows) {
+      const slotsByIdx = new Map<number, EditionSlot[]>();
+      for (const s of row.slots) {
+        const arr = slotsByIdx.get(s.slotIndex) ?? [];
+        arr.push(s);
+        slotsByIdx.set(s.slotIndex, arr);
+      }
+      for (const tSlot of row.rowTemplate.slots) {
+        const inCell = (slotsByIdx.get(tSlot.slotIndex) ?? [])
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+          .map((s) => s.id);
+        seed[`${row.id}:${tSlot.slotIndex}`] = inCell;
+      }
+    }
+    setSlotOrder(seed);
+  }, [edition]);
+
+  // Helpers: translate between slot IDs and cell container keys.
+  const findCellContainer = useCallback(
+    (slotId: string, order: Record<string, string[]>): string | null => {
+      for (const [key, ids] of Object.entries(order)) {
+        if (ids.includes(slotId)) return key;
+      }
+      return null;
+    },
+    []
+  );
+
+  const parseDropCellId = useCallback((overId: string): string | null => {
+    // droppable id is `drop-{rowId}-{slotIndex}` where rowId is a UUID
+    const m = overId.match(/^drop-(.+)-(\d+)$/);
+    if (!m) return null;
+    return `${m[1]}:${m[2]}`;
+  }, []);
+
+  // Pure reducer: given current slotOrder and a drag event pair, return the
+  // next slotOrder. `isFinal` controls whether within-container moves produce
+  // an arrayMove (yes at drop time, no during drag). Doing arrayMove on every
+  // onDragOver causes the classic dnd-kit ping-pong: state swaps items, the
+  // cursor is still near the pre-swap position, collision detection swaps
+  // them back, card snaps home. useSortable's own transform handles the
+  // visual shift during drag without needing the items array to change.
+  const computeSlotOrderAfterMove = useCallback(
+    (
+      prev: Record<string, string[]>,
+      activeId: string,
+      overId: string,
+      isBelowOverItem: boolean,
+      isFinal: boolean,
+    ): Record<string, string[]> => {
+      if (activeId === overId) return prev;
+      if (overId === "remove-zone") return prev;
+
+      const activeContainer = findCellContainer(activeId, prev);
+      if (!activeContainer) return prev;
+
+      let overContainer: string | null = null;
+      let overIsCard = false;
+      if (overId.startsWith("drop-")) {
+        overContainer = parseDropCellId(overId);
+      } else {
+        overContainer = findCellContainer(overId, prev);
+        overIsCard = overContainer != null;
+      }
+      if (!overContainer) return prev;
+
+      if (activeContainer === overContainer) {
+        // Within-container: only mutate at drop time (isFinal). During drag,
+        // useSortable handles the visual shift via translate transforms.
+        if (!isFinal) return prev;
+        if (!overIsCard) return prev;
+        const items = prev[activeContainer] ?? [];
+        const activeIdx = items.indexOf(activeId);
+        const overIdx = items.indexOf(overId);
+        if (activeIdx < 0 || overIdx < 0 || activeIdx === overIdx) return prev;
+        return { ...prev, [activeContainer]: arrayMove(items, activeIdx, overIdx) };
+      }
+
+      // Cross-container: always splice into target at the appropriate
+      // position, both during drag (so siblings push aside) and at drop.
+      const activeItems = prev[activeContainer] ?? [];
+      const overItems = prev[overContainer] ?? [];
+      if (!activeItems.includes(activeId)) return prev;
+      let insertAt: number;
+      if (overIsCard) {
+        const overIdx = overItems.indexOf(overId);
+        insertAt = overIdx >= 0
+          ? Math.max(overIdx + (isBelowOverItem ? 1 : 0), 0)
+          : overItems.length;
+      } else {
+        insertAt = overItems.length;
+      }
+      return {
+        ...prev,
+        [activeContainer]: activeItems.filter((id) => id !== activeId),
+        [overContainer]: [
+          ...overItems.slice(0, insertAt),
+          activeId,
+          ...overItems.slice(insertAt),
+        ],
+      };
+    },
+    [findCellContainer, parseDropCellId]
+  );
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const type = event.active.data.current?.type as "row" | "section" | "slot" | undefined;
     setDragType(type ?? null);
@@ -630,9 +785,79 @@ function BroadsheetEditor({
     } else if (type === "section") {
       setActiveSectionId(event.active.id as string);
     } else {
+      isDraggingSlotRef.current = true;
       setActiveSlotId(event.active.id as string);
     }
   }, []);
+
+  // onDragOver: cross-container moves splice the item into the target cell
+  // so siblings react. Within-container moves are left for onDragEnd —
+  // useSortable animates them visually via its own transform while dragging.
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      if (event.active.data.current?.type !== "slot") return;
+      const { active, over } = event;
+      if (!over) return;
+      const activeId = active.id as string;
+      const overId = over.id as string;
+      const isBelowOverItem = !!(
+        active.rect.current.translated &&
+        active.rect.current.translated.top > over.rect.top + over.rect.height / 2
+      );
+      setSlotOrder((prev) =>
+        computeSlotOrderAfterMove(prev, activeId, overId, isBelowOverItem, false),
+      );
+    },
+    [computeSlotOrderAfterMove]
+  );
+
+  // Custom collision detection for slot drags. closestCorners alone picks
+  // adjacent cards when the cursor is in a cell's empty area — corners of
+  // cards in neighboring rows are often closer to the cursor than the cell's
+  // own corners. Standard dnd-kit multi-container pattern: try pointerWithin
+  // first (cursor-inside is the clearest user intent), then rectIntersection,
+  // then closestCorners as a last resort. Within a single set of hits, prefer
+  // cards over cell-container droppables so hovering a card picks that card.
+  const slotCollisionDetection: CollisionDetection = useCallback((args) => {
+    if (args.active.data.current?.type !== "slot") {
+      return closestCenter(args);
+    }
+    const pointer = pointerWithin(args);
+    let hits = pointer.length > 0 ? pointer : rectIntersection(args);
+    if (hits.length === 0) hits = closestCorners(args);
+    const cards = hits.filter((c) => !String(c.id).startsWith("drop-") && c.id !== "remove-zone");
+    const cells = hits.filter((c) => String(c.id).startsWith("drop-"));
+    const removes = hits.filter((c) => c.id === "remove-zone");
+    return [...cards, ...cells, ...removes];
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    // Explicitly re-seed slotOrder from the (unchanged) server data so any
+    // cross-container movements we mirrored during onDragOver are reverted.
+    if (edition) {
+      const seed: Record<string, string[]> = {};
+      for (const row of edition.rows) {
+        const slotsByIdx = new Map<number, EditionSlot[]>();
+        for (const s of row.slots) {
+          const arr = slotsByIdx.get(s.slotIndex) ?? [];
+          arr.push(s);
+          slotsByIdx.set(s.slotIndex, arr);
+        }
+        for (const tSlot of row.rowTemplate.slots) {
+          const inCell = (slotsByIdx.get(tSlot.slotIndex) ?? [])
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+            .map((s) => s.id);
+          seed[`${row.id}:${tSlot.slotIndex}`] = inCell;
+        }
+      }
+      setSlotOrder(seed);
+    }
+    isDraggingSlotRef.current = false;
+    setActiveSlotId(null);
+    setActiveRowId(null);
+    setActiveSectionId(null);
+    setDragType(null);
+  }, [edition]);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
@@ -674,9 +899,12 @@ function BroadsheetEditor({
         return;
       }
 
-      // Slot drag
-      setActiveSlotId(null);
-      if (!over || !edition) return;
+      // Slot drag — commit the final position.
+      if (!over || !edition) {
+        isDraggingSlotRef.current = false;
+        setActiveSlotId(null);
+        return;
+      }
 
       const slotId = active.id as string;
       const overId = over.id as string;
@@ -684,19 +912,63 @@ function BroadsheetEditor({
       if (overId === "remove-zone") {
         await removePost({ slotId }, mutCtx);
         refetchEdition({ requestPolicy: "network-only" });
+        isDraggingSlotRef.current = false;
+        setActiveSlotId(null);
         return;
       }
 
-      // Parse droppable: "drop-{rowId}-{slotIndex}" (rowId is a UUID with hyphens)
-      const match = overId.match(/^drop-(.+)-(\d+)$/);
-      if (match) {
-        const targetRowId = match[1];
-        const slotIndex = parseInt(match[2], 10);
-        await moveSlot({ slotId, targetRowId, slotIndex }, mutCtx);
+      // Synchronously compute the final slotOrder using the event's final
+      // (active, over) — don't trust the closure's `slotOrder` because dnd-kit
+      // can fire onDragOver and onDragEnd back-to-back within the same
+      // microtask, leaving the closure stale. `isFinal=true` lets this run
+      // the within-container arrayMove that onDragOver deliberately skipped.
+      const isBelowOverItem = !!(
+        active.rect.current.translated &&
+        over.rect &&
+        active.rect.current.translated.top > over.rect.top + over.rect.height / 2
+      );
+      const finalOrder = computeSlotOrderAfterMove(
+        slotOrder,
+        slotId,
+        overId,
+        isBelowOverItem,
+        true,
+      );
+      setSlotOrder(finalOrder);
+
+      const container = findCellContainer(slotId, finalOrder);
+      if (!container) {
+        isDraggingSlotRef.current = false;
+        setActiveSlotId(null);
         refetchEdition({ requestPolicy: "network-only" });
+        return;
       }
+      const items = finalOrder[container] ?? [];
+      const finalIdx = items.indexOf(slotId);
+      const [rowId, slotIndexStr] = container.split(":");
+      const slotIndex = parseInt(slotIndexStr, 10);
+
+      // Short-circuit if the slot really didn't move (dropped on self).
+      const origin = slotLocations.get(slotId);
+      const didMove =
+        !origin ||
+        origin.rowId !== rowId ||
+        origin.slotIndex !== slotIndex ||
+        origin.sortOrder !== finalIdx;
+
+      if (didMove) {
+        await moveSlot(
+          { slotId, targetRowId: rowId, slotIndex, sortOrder: finalIdx },
+          mutCtx,
+        );
+      }
+      // Clear ref + active state AFTER the mutation so the pending refetch
+      // (triggered by mutationContext invalidation) lands on fresh data.
+      isDraggingSlotRef.current = false;
+      setActiveSlotId(null);
+      refetchEdition({ requestPolicy: "network-only" });
     },
-    [edition, sortedRows, sections, moveSlot, removePost, reorderRows, reorderSectionsMut, mutCtx, refetchEdition]
+    [edition, sortedRows, sections, slotOrder, slotLocations, findCellContainer, computeSlotOrderAfterMove, moveSlot, removePost, reorderRows, reorderSectionsMut, mutCtx, refetchEdition]
   );
 
   const handleMoveRow = useCallback(
@@ -893,12 +1165,17 @@ function BroadsheetEditor({
         )}
       </div>
 
-      {/* Broadsheet layout with DnD */}
+      {/* Broadsheet layout with DnD.
+          slotCollisionDetection is the recommended multi-container recipe:
+          pointerWithin → rectIntersection → closestCorners, with cards
+          preferred over cell containers so hovering a card picks the card.  */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={slotCollisionDetection}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
           {sortedRows.length === 0 ? (
             <div className="text-muted-foreground text-center py-12 bg-card rounded-lg border border-border">
@@ -916,6 +1193,8 @@ function BroadsheetEditor({
               allRowsCollapsed={allRowsCollapsed}
               rowTemplates={rowTemplates}
               postTemplates={postTemplates}
+              slotOrder={slotOrder}
+              slotsById={slotsById}
               onMoveRow={handleMoveRow}
               onDeleteRow={handleDeleteRow}
               onChangeRowTemplate={handleChangeRowTemplate}
@@ -1125,6 +1404,8 @@ function RowEditor({
   collapsed,
   rowTemplates,
   postTemplates,
+  slotOrder,
+  slotsById,
   onMoveRow,
   onDeleteRow,
   onChangeRowTemplate,
@@ -1142,6 +1423,8 @@ function RowEditor({
   collapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
+  slotOrder: Record<string, string[]>;
+  slotsById: Map<string, EditionSlot>;
   onMoveRow: (rowId: string, dir: "up" | "down") => void;
   onDeleteRow: (rowId: string) => void;
   onChangeRowTemplate: (rowId: string, slug: string) => void;
@@ -1172,17 +1455,41 @@ function RowEditor({
     [row.rowTemplate.slots]
   );
 
+  // Build each cell's slot list from optimistic `slotOrder` state so dragging
+  // across cells updates visuals immediately. Fall back to `row.slots` order
+  // if state isn't seeded yet (initial render).
   const slotsByIndex = useMemo(() => {
     const map = new Map<number, EditionSlot[]>();
-    for (const slot of row.slots) {
-      const existing = map.get(slot.slotIndex) ?? [];
-      existing.push(slot);
-      map.set(slot.slotIndex, existing);
+    for (const tSlot of templateSlots) {
+      const key = `${row.id}:${tSlot.slotIndex}`;
+      const ordered = slotOrder[key];
+      const slots: EditionSlot[] = ordered
+        ? (ordered.map((id) => slotsById.get(id)).filter((s): s is EditionSlot => !!s))
+        : row.slots
+            .filter((s) => s.slotIndex === tSlot.slotIndex)
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      map.set(tSlot.slotIndex, slots);
     }
     return map;
-  }, [row.slots]);
+  }, [templateSlots, slotOrder, slotsById, row.id, row.slots]);
 
-  const slotCount = row.slots.length;
+  const slotCount = useMemo(
+    () => Array.from(slotsByIndex.values()).reduce((n, arr) => n + arr.length, 0),
+    [slotsByIndex]
+  );
+
+  // Compute visual layout from the row template's layoutVariant so the admin
+  // grid matches how the public broadsheet renders each row (pair = 3/3,
+  // lead = 4/2, trio = 2/2/2, etc.). Previously this was a hardcoded
+  // `grid-cols-3` which silently misrepresented pair/lead/lead-stack/full rows.
+  const layout = useMemo(
+    () => getRowLayout(row.rowTemplate.layoutVariant, templateSlots.length),
+    [row.rowTemplate.layoutVariant, templateSlots.length]
+  );
+  const slotCells = useMemo(
+    () => distributeSlots(templateSlots, layout),
+    [templateSlots, layout]
+  );
 
   return (
     <div
@@ -1263,21 +1570,28 @@ function RowEditor({
 
       {!collapsed && (
         <div className="px-4 pt-0 pb-4">
-          <div className="grid grid-cols-3 gap-3">
-            {templateSlots.map((tSlot) => (
-              <SlotCell
-                key={tSlot.slotIndex}
-                rowId={row.id}
-                templateSlot={tSlot}
-                editionSlots={slotsByIndex.get(tSlot.slotIndex) ?? []}
-                isEditable={isEditable}
-                isDragging={isDragging}
-                postTemplates={postTemplates}
-                onChangeTemplate={onChangeTemplate}
-                onRemovePost={onRemovePost}
-                onViewPost={onViewPost}
-                onAddWidget={(widgetId) => onAddWidget(row.id, widgetId, tSlot.slotIndex)}
-              />
+          <div className="grid grid-cols-6 gap-3">
+            {slotCells.map((cellSlots, cellIdx) => (
+              <div
+                key={cellIdx}
+                className={`${cellSpanClass(layout.cells[cellIdx])} flex flex-col gap-3 min-w-0`}
+              >
+                {cellSlots.map((tSlot) => (
+                  <SlotCell
+                    key={tSlot.slotIndex}
+                    rowId={row.id}
+                    templateSlot={tSlot}
+                    editionSlots={slotsByIndex.get(tSlot.slotIndex) ?? []}
+                    isEditable={isEditable}
+                    isDragging={isDragging}
+                    postTemplates={postTemplates}
+                    onChangeTemplate={onChangeTemplate}
+                    onRemovePost={onRemovePost}
+                    onViewPost={onViewPost}
+                    onAddWidget={(widgetId) => onAddWidget(row.id, widgetId, tSlot.slotIndex)}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         </div>
@@ -1299,6 +1613,8 @@ function FlatRowLayout({
   allRowsCollapsed,
   rowTemplates,
   postTemplates,
+  slotOrder,
+  slotsById,
   onMoveRow,
   onDeleteRow,
   onChangeRowTemplate,
@@ -1315,6 +1631,8 @@ function FlatRowLayout({
   allRowsCollapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
+  slotOrder: Record<string, string[]>;
+  slotsById: Map<string, EditionSlot>;
   onMoveRow: (rowId: string, dir: "up" | "down") => void;
   onDeleteRow: (rowId: string) => void;
   onChangeRowTemplate: (rowId: string, slug: string) => void;
@@ -1358,6 +1676,8 @@ function FlatRowLayout({
               collapsed={allRowsCollapsed}
               rowTemplates={rowTemplates}
               postTemplates={postTemplates}
+              slotOrder={slotOrder}
+              slotsById={slotsById}
               onMoveRow={onMoveRow}
               onDeleteRow={onDeleteRow}
               onChangeRowTemplate={onChangeRowTemplate}
@@ -1391,6 +1711,8 @@ function SectionGroupedLayout({
   allRowsCollapsed,
   rowTemplates,
   postTemplates,
+  slotOrder,
+  slotsById,
   onMoveRow,
   onDeleteRow,
   onChangeRowTemplate,
@@ -1411,6 +1733,8 @@ function SectionGroupedLayout({
   allRowsCollapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
+  slotOrder: Record<string, string[]>;
+  slotsById: Map<string, EditionSlot>;
   onMoveRow: (rowId: string, dir: "up" | "down") => void;
   onDeleteRow: (rowId: string) => void;
   onChangeRowTemplate: (rowId: string, slug: string) => void;
@@ -1476,6 +1800,8 @@ function SectionGroupedLayout({
             collapsed={allRowsCollapsed}
             rowTemplates={rowTemplates}
             postTemplates={postTemplates}
+            slotOrder={slotOrder}
+            slotsById={slotsById}
             onMoveRow={onMoveRow}
             onDeleteRow={onDeleteRow}
             onChangeRowTemplate={onChangeRowTemplate}
@@ -1550,6 +1876,8 @@ function SectionGroupedLayout({
                 allRowsCollapsed={allRowsCollapsed}
                 rowTemplates={rowTemplates}
                 postTemplates={postTemplates}
+                slotOrder={slotOrder}
+                slotsById={slotsById}
                 onMoveRow={onMoveRow}
                 onDeleteRow={onDeleteRow}
                 onChangeRowTemplate={onChangeRowTemplate}
@@ -1604,6 +1932,8 @@ function SectionBlock({
   allRowsCollapsed,
   rowTemplates,
   postTemplates,
+  slotOrder,
+  slotsById,
   onMoveRow,
   onDeleteRow,
   onChangeRowTemplate,
@@ -1624,6 +1954,8 @@ function SectionBlock({
   allRowsCollapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
+  slotOrder: Record<string, string[]>;
+  slotsById: Map<string, EditionSlot>;
   onMoveRow: (rowId: string, dir: "up" | "down") => void;
   onDeleteRow: (rowId: string) => void;
   onChangeRowTemplate: (rowId: string, slug: string) => void;
@@ -1793,6 +2125,8 @@ function SectionBlock({
                       collapsed={allRowsCollapsed}
                       rowTemplates={rowTemplates}
                       postTemplates={postTemplates}
+                      slotOrder={slotOrder}
+                      slotsById={slotsById}
                       onMoveRow={onMoveRow}
                       onDeleteRow={onDeleteRow}
                       onChangeRowTemplate={onChangeRowTemplate}
@@ -2015,7 +2349,6 @@ function SlotCell({
     id: droppableId,
     disabled: !isEditable,
   });
-  const colSpan = WEIGHT_SPAN[templateSlot.weight] ?? 1;
   const hasRoom = editionSlots.length < templateSlot.count;
   const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
 
@@ -2031,23 +2364,27 @@ function SlotCell({
               ? "bg-muted/30"
               : ""
       }`}
-      style={{ gridColumn: `span ${colSpan}` }}
     >
-      {editionSlots.map((slot) =>
-        slot.kind === "widget" && slot.widget ? (
-          <WidgetSlotCard key={slot.id} slot={slot} isEditable={isEditable} onRemovePost={onRemovePost} />
-        ) : slot.post ? (
-          <DraggableSlotCard
-            key={slot.id}
-            slot={slot}
-            isEditable={isEditable}
-            postTemplates={postTemplates}
-            onChangeTemplate={onChangeTemplate}
-            onRemovePost={onRemovePost}
-            onViewPost={onViewPost}
-          />
-        ) : null
-      )}
+      <SortableContext
+        items={editionSlots.map((s) => s.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {editionSlots.map((slot) =>
+          slot.kind === "widget" && slot.widget ? (
+            <WidgetSlotCard key={slot.id} slot={slot} isEditable={isEditable} onRemovePost={onRemovePost} />
+          ) : slot.post ? (
+            <DraggableSlotCard
+              key={slot.id}
+              slot={slot}
+              isEditable={isEditable}
+              postTemplates={postTemplates}
+              onChangeTemplate={onChangeTemplate}
+              onRemovePost={onRemovePost}
+              onViewPost={onViewPost}
+            />
+          ) : null
+        )}
+      </SortableContext>
       {hasRoom && (
         <div
           className={`rounded-lg border-2 border-dashed p-3 flex flex-col items-center justify-center gap-2 ${
@@ -2310,14 +2647,17 @@ function DraggableSlotCard({
   onRemovePost: (slotId: string) => void;
   onViewPost: (postId: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: slot.id, disabled: !isEditable });
+  // useSortable (not useDraggable) so siblings push out of the way on hover
+  // and dnd-kit gives us an insertion index for within-cell reordering.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: slot.id, disabled: !isEditable, data: { type: "slot" } });
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   return (
     <div
