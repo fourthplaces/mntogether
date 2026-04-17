@@ -206,6 +206,11 @@ async fn update_widget(
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
+    // Reconcile media_references from the widget's data.mediaId (if any),
+    // so the Media Library's usage counts stay accurate when editors pick
+    // or change a photo in the widget editor.
+    reconcile_widget_media(&widget, &state.deps.db_pool).await?;
+
     Ok(Json(widget_to_result(&widget)))
 }
 
@@ -214,8 +219,40 @@ async fn delete_widget(
     _user: AdminUser,
     Json(req): Json<DeleteWidgetRequest>,
 ) -> ApiResult<Json<bool>> {
+    // Cascade-clean any media_references pointing at this widget before the
+    // row itself goes away — edition_slots cascade on widget delete, but
+    // media_references is polymorphic with no FK enforcement.
+    crate::domains::media::models::MediaReference::delete_by_entity(
+        "widget",
+        req.id,
+        &state.deps.db_pool,
+    )
+    .await?;
     Widget::delete(req.id, &state.deps.db_pool).await?;
     Ok(Json(true))
+}
+
+/// Read `widget.data.mediaId` (if present) and reconcile a single
+/// media_references row for the widget. When the widget has no mediaId,
+/// all existing references for it are cleared.
+async fn reconcile_widget_media(
+    widget: &crate::domains::widgets::Widget,
+    pool: &sqlx::PgPool,
+) -> ApiResult<()> {
+    use crate::domains::media::models::{DesiredRef, MediaReference};
+
+    let desired: Vec<DesiredRef> = match widget.data.get("mediaId").and_then(|v| v.as_str()) {
+        Some(id) => match uuid::Uuid::parse_str(id) {
+            Ok(uuid) => vec![DesiredRef {
+                media_id: uuid,
+                field_key: Some(widget.widget_type.clone()),
+            }],
+            Err(_) => Vec::new(),
+        },
+        None => Vec::new(),
+    };
+    MediaReference::reconcile("widget", widget.id, &desired, pool).await?;
+    Ok(())
 }
 
 async fn list_widgets_for_edition(

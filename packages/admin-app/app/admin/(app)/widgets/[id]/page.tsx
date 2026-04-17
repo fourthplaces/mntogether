@@ -32,7 +32,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Check, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Plus, Trash2, X, ImageIcon } from "lucide-react";
+import { MediaPicker, type PickedMedia } from "@/components/admin/MediaPicker";
 
 // --- Types ------------------------------------------------------------------
 
@@ -393,9 +394,9 @@ export default function WidgetDetailPage() {
             <div className="border-t border-border pt-4">
               <SectionLabel>System</SectionLabel>
               <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">ID</span>
-                  <span className="text-foreground font-mono text-xs truncate max-w-[180px]">{widget.id}</span>
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-muted-foreground flex-shrink-0">ID</span>
+                  <span className="text-foreground font-mono text-[11px] select-all">{widget.id}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Type</span>
@@ -414,9 +415,9 @@ export default function WidgetDetailPage() {
                   <span className="text-foreground">{new Date(widget.updatedAt).toLocaleString()}</span>
                 </div>
                 {widget.countyId && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">County ID</span>
-                    <span className="text-foreground font-mono text-xs truncate max-w-[180px]">{widget.countyId}</span>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-muted-foreground flex-shrink-0">County ID</span>
+                    <span className="text-foreground font-mono text-[11px] select-all">{widget.countyId}</span>
                   </div>
                 )}
               </div>
@@ -513,6 +514,9 @@ function WidgetEditor({ widgetType, data, updateField, setWidgetData }: EditorPr
         />
       );
 
+    case "photo":
+      return <PhotoWidgetEditor data={data} updateField={updateField} />;
+
     default:
       return (
         <div className="text-muted-foreground italic">
@@ -580,6 +584,97 @@ function FieldsEditor({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// --- Photo widget editor ----------------------------------------------------
+// Single image + optional caption + credit. Image is chosen from the Media
+// Library (MediaPicker) — no raw URL input. `mediaId` is the canonical
+// reference; `image` is the denormalized URL kept alongside so the public
+// renderer can read the src directly from widget.data without a join.
+
+function PhotoWidgetEditor({
+  data,
+  updateField,
+}: {
+  data: Record<string, unknown>;
+  updateField: (key: string, value: unknown) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const imageUrl = typeof data.image === "string" ? data.image : "";
+  const caption = typeof data.caption === "string" ? data.caption : "";
+  const credit = typeof data.credit === "string" ? data.credit : "";
+
+  const handlePick = (picked: PickedMedia) => {
+    // Write image + mediaId together so downstream (public renderer,
+    // media_references) stay in sync.
+    updateField("image", picked.url);
+    updateField("mediaId", picked.id);
+  };
+
+  const clearImage = () => {
+    updateField("image", "");
+    updateField("mediaId", null);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="block text-xs text-muted-foreground uppercase mb-2">Photo</Label>
+        {imageUrl ? (
+          <div className="relative rounded-md overflow-hidden border border-border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt={caption || "Photo widget"}
+              className="w-full object-cover"
+              style={{ maxHeight: "20rem" }}
+            />
+            <div className="absolute top-2 right-2 flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)} className="bg-background/90">
+                <ImageIcon className="size-3.5 mr-1.5" />
+                Change
+              </Button>
+              <Button variant="outline" size="sm" onClick={clearImage} className="bg-background/90">
+                Remove
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setPickerOpen(true)}>
+            <ImageIcon className="size-4 mr-2" />
+            Choose photo
+          </Button>
+        )}
+      </div>
+
+      <div>
+        <Label className="block text-xs text-muted-foreground uppercase mb-1">Caption</Label>
+        <Input
+          value={caption}
+          onChange={(e) => updateField("caption", e.target.value)}
+          placeholder="Short descriptive caption"
+          className="text-sm"
+        />
+      </div>
+
+      <div>
+        <Label className="block text-xs text-muted-foreground uppercase mb-1">Credit</Label>
+        <Input
+          value={credit}
+          onChange={(e) => updateField("credit", e.target.value)}
+          placeholder="Photographer or source"
+          className="text-sm"
+        />
+      </div>
+
+      <MediaPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handlePick}
+        title="Choose photo"
+      />
     </div>
   );
 }
