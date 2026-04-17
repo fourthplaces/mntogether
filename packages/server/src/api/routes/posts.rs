@@ -2165,6 +2165,8 @@ pub struct UpsertPostMediaRequest {
     pub image_url: Option<String>,
     pub caption: Option<String>,
     pub credit: Option<String>,
+    #[serde(default)]
+    pub media_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2184,6 +2186,7 @@ async fn upsert_post_media(
         req.image_url.as_deref(),
         req.caption.as_deref(),
         req.credit.as_deref(),
+        req.media_id,
         pool,
     )
     .await?;
@@ -2224,6 +2227,8 @@ pub struct UpsertPostPersonRequest {
     pub bio: Option<String>,
     pub photo_url: Option<String>,
     pub quote: Option<String>,
+    #[serde(default)]
+    pub photo_media_id: Option<Uuid>,
 }
 
 async fn upsert_post_person(
@@ -2240,6 +2245,7 @@ async fn upsert_post_person(
         req.bio.as_deref(),
         req.photo_url.as_deref(),
         req.quote.as_deref(),
+        req.photo_media_id,
         pool,
     )
     .await?;

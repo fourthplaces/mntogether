@@ -339,7 +339,8 @@ export default function EditPostPage() {
   }
 
   const showPublish = post.status === "draft";
-  const isSpotlight = post.postType === "spotlight";
+  // "spotlight" was renamed to "person" in the 9-type enum (migration 216).
+  const isSpotlight = post.postType === "person";
   const postType = post.postType || "story";
   const titleSizeClass = `title-a--${postType}`;
 

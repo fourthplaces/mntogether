@@ -148,7 +148,15 @@ pub async fn delete_post(
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::delete_post(post_id, &deps.db_pool).await?;
+    // Clear media_references pointing at this post before the cascade delete
+    // so the Library's usage counts stay accurate.
+    let pool = &deps.db_pool;
+    let post_uuid = post_id.into_uuid();
+    for rtype in &["post_hero", "post_person", "post_body"] {
+        crate::domains::media::models::MediaReference::delete_by_entity(rtype, post_uuid, pool).await?;
+    }
+
+    post_operations::delete_post(post_id, pool).await?;
     Ok(())
 }
 

@@ -383,13 +383,14 @@ export const postResolvers = {
     // Field group upserts
     upsertPostMedia: async (
       _parent: unknown,
-      args: { postId: string; imageUrl?: string; caption?: string; credit?: string },
+      args: { postId: string; imageUrl?: string; caption?: string; credit?: string; mediaId?: string | null },
       ctx: GraphQLContext
     ) => {
       await ctx.server.callService("Post", `${args.postId}/upsert_media`, {
         image_url: args.imageUrl,
         caption: args.caption,
         credit: args.credit,
+        media_id: args.mediaId ?? null,
       });
       return true;
     },
@@ -410,7 +411,7 @@ export const postResolvers = {
 
     upsertPostPerson: async (
       _parent: unknown,
-      args: { postId: string; name?: string; role?: string; bio?: string; photoUrl?: string; quote?: string },
+      args: { postId: string; name?: string; role?: string; bio?: string; photoUrl?: string; quote?: string; photoMediaId?: string | null },
       ctx: GraphQLContext
     ) => {
       await ctx.server.callService("Post", `${args.postId}/upsert_person`, {
@@ -419,6 +420,7 @@ export const postResolvers = {
         bio: args.bio,
         photo_url: args.photoUrl,
         quote: args.quote,
+        photo_media_id: args.photoMediaId ?? null,
       });
       return true;
     },
@@ -523,9 +525,10 @@ export const postResolvers = {
       return (fg.media ?? []).map((m: unknown) => {
         const rec = m as Record<string, unknown>;
         return {
-          imageUrl: rec.imageUrl,
+          imageUrl: rec.imageUrl ?? rec.image_url,
           caption: rec.caption,
           credit: rec.credit,
+          mediaId: rec.mediaId ?? rec.media_id ?? null,
         };
       });
     },
@@ -538,7 +541,11 @@ export const postResolvers = {
       if (parent.person !== undefined) return parent.person;
       const fg = await ctx.server.callService<{ person?: Record<string, unknown> }>("Post", `${parent.id}/field_groups`, {});
       if (!fg.person) return null;
-      return { ...fg.person, photoUrl: fg.person.photoUrl };
+      return {
+        ...fg.person,
+        photoUrl: fg.person.photoUrl ?? fg.person.photo_url,
+        photoMediaId: fg.person.photoMediaId ?? fg.person.photo_media_id ?? null,
+      };
     },
     link: async (parent: { id: string; link?: unknown }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.link !== undefined) return parent.link;

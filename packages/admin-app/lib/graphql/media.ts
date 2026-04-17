@@ -1,8 +1,8 @@
 import { graphql } from "@/gql";
 
 export const MediaLibraryQuery = graphql(`
-  query MediaLibrary($limit: Int, $offset: Int, $contentType: String) {
-    mediaLibrary(limit: $limit, offset: $offset, contentType: $contentType) {
+  query MediaLibrary($limit: Int, $offset: Int, $contentType: String, $search: String, $unusedOnly: Boolean) {
+    mediaLibrary(limit: $limit, offset: $offset, contentType: $contentType, search: $search, unusedOnly: $unusedOnly) {
       media {
         id
         filename
@@ -14,9 +14,22 @@ export const MediaLibraryQuery = graphql(`
         width
         height
         createdAt
+        updatedAt
+        usageCount
       }
       totalCount
       hasNextPage
+    }
+  }
+`);
+
+export const MediaUsageQuery = graphql(`
+  query MediaUsage($mediaId: ID!) {
+    mediaUsage(mediaId: $mediaId) {
+      referenceableType
+      referenceableId
+      fieldKey
+      title
     }
   }
 `);
@@ -61,6 +74,17 @@ export const ConfirmUploadMutation = graphql(`
       width
       height
       createdAt
+    }
+  }
+`);
+
+export const UpdateMediaMetadataMutation = graphql(`
+  mutation UpdateMediaMetadata($id: ID!, $altText: String, $filename: String) {
+    updateMediaMetadata(id: $id, altText: $altText, filename: $filename) {
+      id
+      filename
+      altText
+      updatedAt
     }
   }
 `);

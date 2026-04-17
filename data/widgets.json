@@ -32,17 +32,17 @@
 
   "photos": [
     {
-      "image": "https://images.unsplash.com/photo-1593113598332-cd288d649433?w=1400&h=500&fit=crop",
+      "mediaKey": "volunteers-sorting-donations.jpg",
       "caption": "Volunteers sort donations ahead of a weekend distribution.",
       "credit": "Photo: MN Together"
     },
     {
-      "image": "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1400&h=500&fit=crop",
+      "mediaKey": "streetscape-first-thaw.jpg",
       "caption": "Minnesota streetscapes after the first thaw — shoppers return as temperatures climb above freezing.",
       "credit": "Photo: MN Together"
     },
     {
-      "image": "https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=1400&h=500&fit=crop",
+      "mediaKey": "community-garden-plots.jpg",
       "caption": "Community garden plots open for the season across Minnesota.",
       "credit": "Photo: MN Together"
     }

@@ -15,7 +15,7 @@ type LeftPost = {
   bodyHeavy?: string | null;
   bodyMedium?: string | null;
   bodyLight?: string | null;
-  media?: Array<{ imageUrl?: string | null; caption?: string | null; credit?: string | null }> | null;
+  media?: Array<{ imageUrl?: string | null; caption?: string | null; credit?: string | null; mediaId?: string | null }> | null;
 };
 
 export function PostDetailLeft({
@@ -25,7 +25,7 @@ export function PostDetailLeft({
 }: {
   post: LeftPost;
   postId: string;
-  onSaveMedia: (input: { imageUrl: string | null; caption: string | null; credit: string | null }) => Promise<unknown>;
+  onSaveMedia: (input: { imageUrl: string | null; caption: string | null; credit: string | null; mediaId: string | null }) => Promise<unknown>;
 }) {
   const heroMedia = post.media && post.media.length > 0 ? post.media[0] : null;
 

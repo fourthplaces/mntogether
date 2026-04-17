@@ -40,7 +40,7 @@ export function PostForm({
     initialValues?.bodyRaw ?? ""
   );
   const [postType, setPostType] = useState(
-    initialValues?.postType ?? "notice"
+    initialValues?.postType ?? "update"
   );
   const [weight, setWeight] = useState(initialValues?.weight ?? "medium");
   const [priority, setPriority] = useState(initialValues?.priority ?? 0);

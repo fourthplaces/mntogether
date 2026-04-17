@@ -207,7 +207,7 @@ export default function PostDetailPage() {
       upsertLink({ postId, ...input }, mutationContext),
     upsertDatetime: async (input: { start: string | null; end: string | null; cost: string | null; recurring: boolean }) =>
       upsertDatetime({ postId, startAt: input.start, endAt: input.end, cost: input.cost, recurring: input.recurring }, mutationContext),
-    upsertPerson: async (input: { name: string | null; role: string | null; bio: string | null; photoUrl: string | null; quote: string | null }) =>
+    upsertPerson: async (input: { name: string | null; role: string | null; bio: string | null; photoUrl: string | null; quote: string | null; photoMediaId: string | null }) =>
       upsertPerson({ postId, ...input }, mutationContext),
     upsertItems: async (items: Array<{ name: string; detail?: string | null }>) =>
       upsertItems({ postId, items: items.map(i => ({ name: i.name, detail: i.detail ?? null })) }, mutationContext),
@@ -217,7 +217,7 @@ export default function PostDetailPage() {
       upsertPostStatus({ postId, ...input }, mutationContext),
   };
 
-  const onSaveMedia = async (input: { imageUrl: string | null; caption: string | null; credit: string | null }) =>
+  const onSaveMedia = async (input: { imageUrl: string | null; caption: string | null; credit: string | null; mediaId: string | null }) =>
     upsertMedia({ postId, ...input }, mutationContext);
 
   return (

@@ -1491,6 +1491,13 @@ function RowEditor({
     [templateSlots, layout]
   );
 
+  // Widget-only rows (widget-standalone / widget-pair / widget-trio) hold
+  // widgets, not posts. Their cells are marked as not accepting post drops
+  // (passed through to SlotCell below); the violet styling on WidgetSlotCard
+  // + lack of drop affordance are enough to signal "this row moves as a
+  // unit; use Structure mode to rearrange."
+  const isWidgetOnlyRow = row.rowTemplate.layoutVariant.startsWith("widget-");
+
   return (
     <div
       ref={setSortableRef}
@@ -1584,6 +1591,7 @@ function RowEditor({
                     editionSlots={slotsByIndex.get(tSlot.slotIndex) ?? []}
                     isEditable={isEditable}
                     isDragging={isDragging}
+                    disablePostDrop={isWidgetOnlyRow}
                     postTemplates={postTemplates}
                     onChangeTemplate={onChangeTemplate}
                     onRemovePost={onRemovePost}
@@ -2327,6 +2335,7 @@ function SlotCell({
   editionSlots,
   isEditable,
   isDragging,
+  disablePostDrop,
   postTemplates,
   onChangeTemplate,
   onRemovePost,
@@ -2338,6 +2347,10 @@ function SlotCell({
   editionSlots: EditionSlot[];
   isEditable: boolean;
   isDragging: boolean;
+  /** Widget-only rows disable post-drop: collision detection skips the
+   *  droppable + the dashed add-post hint area hides. Editors still add
+   *  widgets via the Add Widget button. */
+  disablePostDrop?: boolean;
   postTemplates: PostTemplate[];
   onChangeTemplate: (slotId: string, template: string) => void;
   onRemovePost: (slotId: string) => void;
@@ -2347,7 +2360,7 @@ function SlotCell({
   const droppableId = `drop-${rowId}-${templateSlot.slotIndex}`;
   const { isOver, setNodeRef } = useDroppable({
     id: droppableId,
-    disabled: !isEditable,
+    disabled: !isEditable || !!disablePostDrop,
   });
   const hasRoom = editionSlots.length < templateSlot.count;
   const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
@@ -2358,9 +2371,9 @@ function SlotCell({
       className={`space-y-2 rounded-lg p-2 transition-colors min-h-[80px] ${
         isOver
           ? "bg-amber-50 ring-2 ring-amber-300"
-          : isDragging && hasRoom && isEditable
+          : isDragging && hasRoom && isEditable && !disablePostDrop
             ? "ring-1 ring-amber-200 bg-amber-50/30"
-            : hasRoom && isEditable
+            : hasRoom && isEditable && !disablePostDrop
               ? "bg-muted/30"
               : ""
       }`}
@@ -2390,13 +2403,29 @@ function SlotCell({
           className={`rounded-lg border-2 border-dashed p-3 flex flex-col items-center justify-center gap-2 ${
             isOver
               ? "border-amber-400 bg-amber-50/50"
-              : isDragging && isEditable
+              : isDragging && isEditable && !disablePostDrop
                 ? "border-amber-300"
-                : "border-border"
+                : disablePostDrop
+                  ? "border-violet-200 bg-violet-50/30"
+                  : "border-border"
           }`}
         >
           {isOver ? (
             <span className="text-xs font-medium text-amber-600">Drop here</span>
+          ) : disablePostDrop ? (
+            // Widget-only row: skip the weight badge + "N open" hint (those
+            // are post-centric) and just show the Add Widget affordance.
+            isEditable && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-[10px] text-violet-600 hover:text-violet-700 h-5 px-1.5"
+                onClick={() => setWidgetPickerOpen(true)}
+              >
+                <Puzzle className="size-3 mr-1" />
+                Add Widget
+              </Button>
+            )
           ) : (
             <>
               <div className="flex items-center gap-2">
@@ -2582,10 +2611,11 @@ function WidgetSlotCard({
 }) {
   const widget = slot.widget!;
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const widgetLabel = widget.widgetType
+  const widgetLabel = WIDGET_TYPE_LABELS[widget.widgetType] ?? widget.widgetType
     .split("_")
     .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+  const summary = widgetSummary(widget.widgetType, widget.data as string | null);
 
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
@@ -2593,11 +2623,17 @@ function WidgetSlotCard({
         <div className="flex-1 min-w-0">
           <Link
             href={`/admin/widgets/${widget.id}`}
+            draggable={false}
             className="block text-sm font-medium text-foreground truncate hover:underline"
           >
             {widgetLabel}
           </Link>
-          <div className="flex items-center gap-1.5 mt-1">
+          {summary && (
+            <p className="text-xs text-text-body mt-1 line-clamp-2">
+              {summary}
+            </p>
+          )}
+          <div className="flex items-center gap-1.5 mt-1.5">
             <Badge variant="secondary" className="text-[10px] bg-violet-100 text-violet-800">
               widget
             </Badge>

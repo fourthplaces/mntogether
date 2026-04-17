@@ -120,6 +120,7 @@ pub async fn list_media(
 ) -> Result<(Vec<Media>, i64, bool)> {
     let filters = MediaFilters {
         content_type_prefix,
+        ..Default::default()
     };
     let (items, total_count) =
         Media::list_paginated(&filters, limit, offset, &deps.db_pool).await?;

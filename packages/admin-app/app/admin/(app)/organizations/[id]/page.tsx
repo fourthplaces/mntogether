@@ -622,12 +622,18 @@ type PostData = {
   createdAt: string;
 };
 
-function postTypeBadgeVariant(postType?: string | null): "info" | "success" | "warning" | "spotlight" | "secondary" {
+function postTypeBadgeVariant(postType?: string | null): "info" | "success" | "warning" | "spotlight" | "secondary" | "danger" {
+  // 9-type enum from migration 216.
   switch (postType) {
     case "story": return "info";
-    case "exchange": return "success";
+    case "update": return "secondary";
+    case "action": return "warning";
     case "event": return "warning";
-    case "spotlight": return "spotlight";
+    case "need": return "danger";
+    case "aid": return "success";
+    case "person": return "spotlight";
+    case "business": return "info";
+    case "reference": return "info";
     default: return "secondary";
   }
 }

@@ -38,12 +38,16 @@ interface PostReviewCardProps {
   isRejecting?: boolean;
 }
 
-const TYPE_VARIANTS: Record<string, "info" | "success" | "spotlight" | "warning" | "secondary"> = {
+// 9-type enum from migration 216. Unknown values fall through to "secondary".
+const TYPE_VARIANTS: Record<string, "info" | "success" | "spotlight" | "warning" | "secondary" | "danger"> = {
   story: "info",
-  notice: "secondary",
-  exchange: "success",
+  update: "secondary",
+  action: "warning",
   event: "warning",
-  spotlight: "spotlight",
+  need: "danger",
+  aid: "success",
+  person: "spotlight",
+  business: "info",
   reference: "info",
 };
 

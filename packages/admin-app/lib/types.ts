@@ -34,7 +34,18 @@ export interface ContactInfo {
 // Post Types
 // ============================================================================
 
-export type PostType = "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
+// 9-type enum from migration 216 — keep in sync with POST_TYPES in
+// lib/post-form-constants.ts.
+export type PostType =
+  | "story"
+  | "update"
+  | "action"
+  | "event"
+  | "need"
+  | "aid"
+  | "person"
+  | "business"
+  | "reference";
 export type PostStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
 export interface Post {
   id: string;

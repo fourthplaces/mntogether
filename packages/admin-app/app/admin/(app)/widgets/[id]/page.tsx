@@ -236,7 +236,7 @@ export default function WidgetDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[6fr_4fr] gap-6">
 
           {/* LEFT COLUMN */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
 
             {/* Title */}
             <h1 className="text-2xl font-bold text-foreground">
@@ -303,34 +303,41 @@ export default function WidgetDetailPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <div>
-                  <label className="block text-xs text-muted-foreground uppercase mb-1">Start Date</label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    className="text-sm"
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      saveMeta({ zipCode, city, countyId, startDate: e.target.value, endDate });
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground uppercase mb-1">End Date</label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    className="text-sm"
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      saveMeta({ zipCode, city, countyId, startDate, endDate: e.target.value });
-                    }}
-                  />
-                </div>
-              </div>
-              {!startDate && !endDate && (
-                <p className="text-xs text-muted-foreground mt-1.5">No date range set -- widget is evergreen.</p>
+              {/* Section separators are purely structural labels between
+                  content sections — they're always evergreen within an
+                  edition, so the date range inputs are hidden for them. */}
+              {widgetType !== "section_sep" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground uppercase mb-1">Start Date</label>
+                      <Input
+                        type="date"
+                        value={startDate}
+                        className="text-sm"
+                        onChange={(e) => {
+                          setStartDate(e.target.value);
+                          saveMeta({ zipCode, city, countyId, startDate: e.target.value, endDate });
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground uppercase mb-1">End Date</label>
+                      <Input
+                        type="date"
+                        value={endDate}
+                        className="text-sm"
+                        onChange={(e) => {
+                          setEndDate(e.target.value);
+                          saveMeta({ zipCode, city, countyId, startDate, endDate: e.target.value });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {!startDate && !endDate && (
+                    <p className="text-xs text-muted-foreground mt-1.5">No date range set -- widget is evergreen.</p>
+                  )}
+                </>
               )}
             </div>
 
@@ -353,7 +360,7 @@ export default function WidgetDetailPage() {
           </div>
 
           {/* RIGHT COLUMN */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
 
             {/* Widget Type */}
             <div>
@@ -418,7 +425,7 @@ export default function WidgetDetailPage() {
             {/* JSON Preview */}
             <div className="border-t border-border pt-4">
               <SectionLabel>Data Preview</SectionLabel>
-              <pre className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 overflow-auto max-h-64 font-mono">
+              <pre className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 overflow-auto max-h-64 font-mono whitespace-pre-wrap break-all">
                 {JSON.stringify(widgetData, null, 2)}
               </pre>
             </div>

@@ -40,7 +40,17 @@ import {
 // ─── Types & config ─────────────────────────────────────────────────────────
 
 type StatusTab = "draft" | "active" | "archived";
-type PostTypeFilter = "__all__" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
+type PostTypeFilter =
+  | "__all__"
+  | "story"
+  | "update"
+  | "action"
+  | "event"
+  | "need"
+  | "aid"
+  | "person"
+  | "business"
+  | "reference";
 
 const STATUS_TABS: { key: StatusTab; label: string }[] = [
   { key: "draft", label: "Drafts" },
@@ -51,19 +61,25 @@ const STATUS_TABS: { key: StatusTab; label: string }[] = [
 const POST_TYPE_OPTIONS: { value: PostTypeFilter; label: string }[] = [
   { value: "__all__", label: "All Types" },
   { value: "story", label: "Story" },
-  { value: "notice", label: "Notice" },
-  { value: "exchange", label: "Exchange" },
+  { value: "update", label: "Update" },
+  { value: "action", label: "Action" },
   { value: "event", label: "Event" },
-  { value: "spotlight", label: "Spotlight" },
+  { value: "need", label: "Need" },
+  { value: "aid", label: "Aid" },
+  { value: "person", label: "Person" },
+  { value: "business", label: "Business" },
   { value: "reference", label: "Reference" },
 ];
 
 const TYPE_BADGE_STYLES: Record<string, string> = {
   story: "bg-indigo-100 text-indigo-800",
-  notice: "bg-amber-100 text-amber-800",
-  exchange: "bg-blue-100 text-blue-800",
+  update: "bg-amber-100 text-amber-800",
+  action: "bg-orange-100 text-orange-800",
   event: "bg-green-100 text-green-800",
-  spotlight: "bg-purple-100 text-purple-800",
+  need: "bg-red-100 text-red-800",
+  aid: "bg-emerald-100 text-emerald-800",
+  person: "bg-purple-100 text-purple-800",
+  business: "bg-blue-100 text-blue-800",
   reference: "bg-muted text-muted-foreground",
 };
 

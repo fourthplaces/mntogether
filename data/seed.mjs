@@ -8,8 +8,9 @@
 // Reads: data/tags.json, data/organizations.json, data/posts.json
 // Zero external dependencies (Node stdlib only).
 
-import { readFileSync } from "fs";
-import { dirname, join } from "path";
+import { readFileSync, readdirSync, statSync, existsSync } from "fs";
+import { createHash } from "crypto";
+import { dirname, join, extname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +22,68 @@ const rawPosts = read("posts.json");
 // Filter out comment-only entries
 const posts = rawPosts.filter((p) => !p._comment);
 const widgets = read("widgets.json");
+
+// ---------------------------------------------------------------------------
+// Seed media: local files in data/seed-media/ get INSERTed into the media
+// table with deterministic UUIDs so widget/post JSON can reference them by
+// filename via `mediaKey`. The actual file upload to MinIO is a separate
+// `make seed-media-upload` step — this script only emits SQL.
+// ---------------------------------------------------------------------------
+
+const SEED_MEDIA_DIR = join(__dirname, "seed-media");
+const MINIO_PUBLIC_ROOT = "http://localhost:9000/media";
+const MEDIA_NAMESPACE = "mn-together-seed-media-v1"; // versioned salt for stable UUIDs
+
+function contentTypeFor(ext) {
+  switch (ext.toLowerCase()) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    case ".svg":
+      return "image/svg+xml";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+/** Deterministic UUID (v5-ish) derived from filename + a stable namespace. */
+function seedMediaUuid(filename) {
+  const h = createHash("sha1").update(MEDIA_NAMESPACE + "|" + filename).digest("hex");
+  // Format as UUID 8-4-4-4-12. Force version=5 and variant bits for validity.
+  const part1 = h.slice(0, 8);
+  const part2 = h.slice(8, 12);
+  const part3 = "5" + h.slice(13, 16);
+  const variant = (parseInt(h.slice(16, 18), 16) & 0x3f) | 0x80;
+  const part4 = variant.toString(16).padStart(2, "0") + h.slice(18, 20);
+  const part5 = h.slice(20, 32);
+  return `${part1}-${part2}-${part3}-${part4}-${part5}`;
+}
+
+/** Map of { filename → { mediaId, url, contentType, sizeBytes } }. */
+const seedMedia = (() => {
+  const map = {};
+  if (!existsSync(SEED_MEDIA_DIR)) return map;
+  for (const f of readdirSync(SEED_MEDIA_DIR)) {
+    if (f.startsWith(".")) continue;
+    const ext = extname(f);
+    const full = join(SEED_MEDIA_DIR, f);
+    const size = statSync(full).size;
+    map[f] = {
+      mediaId: seedMediaUuid(f),
+      url: `${MINIO_PUBLIC_ROOT}/seed/${f}`,
+      storageKey: `seed/${f}`,
+      contentType: contentTypeFor(ext),
+      sizeBytes: size,
+    };
+  }
+  return map;
+})();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -371,6 +434,27 @@ out("");
 // generation and inserts them as widget-standalone rows at rule-based
 // positions (section separators between row groups, pull quotes mid-page, etc).
 
+// ── Seed media library ────────────────────────────────────────────────────
+// Deterministic media rows for every file in data/seed-media/. These IDs are
+// referenced by widget + post JSON via `mediaKey: "filename.ext"`.
+// The actual files need to be in MinIO — run `make seed-media-upload` once
+// before this SQL lands, or after the bucket is cleared.
+if (Object.keys(seedMedia).length > 0) {
+  out("-- Seed media (deterministic UUIDs, file upload is a separate step)");
+  for (const [filename, m] of Object.entries(seedMedia)) {
+    out(
+      `INSERT INTO media (id, filename, content_type, size_bytes, storage_key, url)`
+    );
+    out(
+      `  VALUES (${esc(m.mediaId)}::uuid, ${esc(filename)}, ${esc(m.contentType)}, ${m.sizeBytes}, ${esc(m.storageKey)}, ${esc(m.url)})`
+    );
+    out(
+      `  ON CONFLICT (storage_key) DO UPDATE SET url = EXCLUDED.url, size_bytes = EXCLUDED.size_bytes, content_type = EXCLUDED.content_type;`
+    );
+  }
+  out("");
+}
+
 out("-- Widgets: clear + reseed (idempotent for dev — widgets are evergreen curator content)");
 out("DELETE FROM edition_slots WHERE kind = 'widget';");
 out("DELETE FROM widgets WHERE authoring_mode = 'human';");
@@ -380,6 +464,19 @@ const widgetJson = (obj) => {
   const clean = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v != null) clean[k] = v;
+  }
+  // Resolve `mediaKey: "filename.jpg"` into both `image` (URL) and `mediaId`
+  // (FK into the media table) so (a) the public renderer can read the URL
+  // directly from widget data, and (b) the Library knows this widget
+  // references that media when we seed media_references below.
+  if (clean.mediaKey) {
+    const resolved = seedMedia[clean.mediaKey];
+    if (!resolved) {
+      throw new Error(`Unknown seed mediaKey: ${clean.mediaKey}. Add to data/seed-media/.`);
+    }
+    clean.image = resolved.url;
+    clean.mediaId = resolved.mediaId;
+    delete clean.mediaKey;
   }
   return esc(JSON.stringify(clean));
 };
@@ -399,7 +496,26 @@ out("");
 
 out("-- Photos (evergreen, generic community imagery)");
 for (const photo of widgets.photos || []) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb);`);
+  // Resolve mediaKey ahead of JSON serialization so we can also emit a
+  // media_references row tying this widget to its media library entry.
+  const resolved = photo.mediaKey ? seedMedia[photo.mediaKey] : null;
+  if (photo.mediaKey && !resolved) {
+    throw new Error(`Unknown seed mediaKey: ${photo.mediaKey}. Add to data/seed-media/.`);
+  }
+  if (resolved) {
+    out(`WITH inserted_widget AS (`);
+    out(
+      `  INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb) RETURNING id`
+    );
+    out(`)`);
+    out(`INSERT INTO media_references (media_id, referenceable_type, referenceable_id, field_key)`);
+    out(
+      `SELECT ${esc(resolved.mediaId)}::uuid, 'widget', id, 'photo' FROM inserted_widget`
+    );
+    out(`ON CONFLICT DO NOTHING;`);
+  } else {
+    out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb);`);
+  }
 }
 out("");
 

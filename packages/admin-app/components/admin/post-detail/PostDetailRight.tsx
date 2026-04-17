@@ -41,7 +41,7 @@ type RightPost = {
   datetime?: { start?: string | null; end?: string | null; cost?: string | null; recurring?: boolean | null } | null;
   link?: { label?: string | null; url?: string | null; deadline?: string | null } | null;
   items?: Array<{ name: string; detail?: string | null }> | null;
-  person?: { name?: string | null; role?: string | null; bio?: string | null; photoUrl?: string | null; quote?: string | null } | null;
+  person?: { name?: string | null; role?: string | null; bio?: string | null; photoUrl?: string | null; quote?: string | null; photoMediaId?: string | null } | null;
   sourceAttribution?: { sourceName?: string | null; attribution?: string | null } | null;
   postStatus?: { state?: string | null; verified?: string | null } | null;
   tags?: Array<{ id: string; kind: string; value: string; displayName?: string | null; color?: string | null }> | null;
@@ -58,7 +58,7 @@ type Actions = {
   deleteSchedule: (scheduleId: string) => Promise<unknown>;
   upsertLink: (input: { label: string | null; url: string | null; deadline: string | null }) => Promise<unknown>;
   upsertDatetime: (input: { start: string | null; end: string | null; cost: string | null; recurring: boolean }) => Promise<unknown>;
-  upsertPerson: (input: { name: string | null; role: string | null; bio: string | null; photoUrl: string | null; quote: string | null }) => Promise<unknown>;
+  upsertPerson: (input: { name: string | null; role: string | null; bio: string | null; photoUrl: string | null; quote: string | null; photoMediaId: string | null }) => Promise<unknown>;
   upsertItems: (items: Array<{ name: string; detail?: string | null }>) => Promise<unknown>;
   upsertSourceAttr: (input: { sourceName: string | null; attribution: string | null }) => Promise<unknown>;
   upsertStatus: (input: { state: string | null; verified: string | null }) => Promise<unknown>;

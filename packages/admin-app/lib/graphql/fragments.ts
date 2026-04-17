@@ -83,6 +83,7 @@ export const PostDetailFields = graphql(`
       imageUrl
       caption
       credit
+      mediaId
     }
     items {
       name
@@ -94,6 +95,7 @@ export const PostDetailFields = graphql(`
       bio
       photoUrl
       quote
+      photoMediaId
     }
     link {
       label

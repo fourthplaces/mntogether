@@ -11,7 +11,7 @@
 #   make restart  - Restart all services
 # ============================================================================
 
-.PHONY: help up down logs restart restart-server restart-admin restart-minio clean build migrate seed shell db-shell test check
+.PHONY: help up down logs restart restart-server restart-admin restart-minio clean build migrate seed seed-media-upload shell db-shell test check
 
 # Default target - show help
 help:
@@ -128,8 +128,23 @@ logs-db:
 migrate:
 	docker compose exec server sqlx migrate run
 
-# Seed database from JSON files (data/posts.json, data/organizations.json, data/tags.json)
-seed:
+# Upload the local seed image files into the MinIO `media` bucket at the
+# `seed/` prefix. Uses a throwaway `minio/mc` client container on the
+# compose network so no mc install is needed on the host. Idempotent.
+# (minio/mc's default entrypoint is `mc`; override with `sh -c` via
+# --entrypoint so we can chain commands.)
+seed-media-upload:
+	@docker run --rm \
+		--network rooteditorial_network \
+		-v "$(PWD)/data/seed-media:/seed-media:ro" \
+		--entrypoint sh \
+		minio/mc:latest \
+		-c "mc alias set local http://minio:9000 minioadmin minioadmin >/dev/null && mc cp --recursive /seed-media/ local/media/seed/"
+
+# Seed database from JSON files (data/posts.json, data/organizations.json,
+# data/tags.json, data/widgets.json). Uploads seed media first so the
+# emitted media rows reference files that actually exist in MinIO.
+seed: seed-media-upload
 	@node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
 
 # Open PostgreSQL shell

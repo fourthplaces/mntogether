@@ -27,6 +27,29 @@ pub struct Media {
 #[derive(Debug, Default)]
 pub struct MediaFilters<'a> {
     pub content_type_prefix: Option<&'a str>,
+    /// Substring match against filename or alt_text (ILIKE).
+    pub search: Option<&'a str>,
+    /// When true, only return media with zero rows in media_references.
+    pub unused_only: bool,
+}
+
+/// A Media row with its current usage_count pre-joined — returned by
+/// `list_with_usage` for Library UIs that need to show "Used by N" badges.
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+pub struct MediaWithUsage {
+    pub id: Uuid,
+    pub filename: String,
+    pub content_type: String,
+    pub size_bytes: i64,
+    pub storage_key: String,
+    pub url: String,
+    pub alt_text: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub uploaded_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub usage_count: i64,
 }
 
 impl Media {
@@ -74,34 +97,150 @@ impl Media {
     }
 
     /// List media with offset pagination, ordered by newest first.
-    /// Returns (items, total_count).
+    /// Returns (items, total_count). Kept for backward compatibility —
+    /// new callers should prefer `list_with_usage` which joins usage counts.
     pub async fn list_paginated(
         filters: &MediaFilters<'_>,
         limit: i64,
         offset: i64,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, i64)> {
-        let items = sqlx::query_as::<_, Self>(
-            "SELECT * FROM media
-             WHERE ($1::text IS NULL OR content_type LIKE $1 || '%')
-             ORDER BY created_at DESC
-             LIMIT $2 OFFSET $3",
+        let (items, total) = Self::list_with_usage(filters, limit, offset, pool).await?;
+        let bare: Vec<Self> = items
+            .into_iter()
+            .map(|m| Self {
+                id: m.id,
+                filename: m.filename,
+                content_type: m.content_type,
+                size_bytes: m.size_bytes,
+                storage_key: m.storage_key,
+                url: m.url,
+                alt_text: m.alt_text,
+                width: m.width,
+                height: m.height,
+                uploaded_by: m.uploaded_by,
+                created_at: m.created_at,
+                updated_at: m.updated_at,
+            })
+            .collect();
+        Ok((bare, total))
+    }
+
+    /// List media with pagination + usage_count joined. Honors content-type
+    /// prefix, filename/alt-text search, and "unused only" filters.
+    pub async fn list_with_usage(
+        filters: &MediaFilters<'_>,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<(Vec<MediaWithUsage>, i64)> {
+        let search_pat = filters.search.map(|s| format!("%{}%", s));
+
+        let items = sqlx::query_as::<_, MediaWithUsage>(
+            r#"
+            SELECT m.*, COALESCE(ref.n, 0) AS usage_count
+            FROM media m
+            LEFT JOIN (
+                SELECT media_id, COUNT(*) AS n
+                FROM media_references
+                GROUP BY media_id
+            ) ref ON ref.media_id = m.id
+            WHERE ($1::text IS NULL OR m.content_type LIKE $1 || '%')
+              AND ($2::text IS NULL OR m.filename ILIKE $2 OR m.alt_text ILIKE $2)
+              AND ($3::bool = FALSE OR COALESCE(ref.n, 0) = 0)
+            ORDER BY m.created_at DESC
+            LIMIT $4 OFFSET $5
+            "#,
         )
         .bind(filters.content_type_prefix)
+        .bind(search_pat.as_deref())
+        .bind(filters.unused_only)
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
         .await?;
 
+        let search_pat_count = filters.search.map(|s| format!("%{}%", s));
         let count_row: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM media
-             WHERE ($1::text IS NULL OR content_type LIKE $1 || '%')",
+            r#"
+            SELECT COUNT(*) FROM media m
+            LEFT JOIN (
+                SELECT media_id, COUNT(*) AS n
+                FROM media_references
+                GROUP BY media_id
+            ) ref ON ref.media_id = m.id
+            WHERE ($1::text IS NULL OR m.content_type LIKE $1 || '%')
+              AND ($2::text IS NULL OR m.filename ILIKE $2 OR m.alt_text ILIKE $2)
+              AND ($3::bool = FALSE OR COALESCE(ref.n, 0) = 0)
+            "#,
         )
         .bind(filters.content_type_prefix)
+        .bind(search_pat_count.as_deref())
+        .bind(filters.unused_only)
         .fetch_one(pool)
         .await?;
 
         Ok((items, count_row.0))
+    }
+
+    /// Update the editable metadata (alt_text, filename) on a media item.
+    pub async fn update_metadata(
+        id: Uuid,
+        alt_text: Option<&str>,
+        filename: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE media
+            SET
+                alt_text = COALESCE($2, alt_text),
+                filename = COALESCE($3, filename),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(alt_text)
+        .bind(filename)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
+    }
+
+    /// Replace the underlying file for a media item while keeping the same
+    /// row (and therefore all references). Storage_key stays, url stays,
+    /// dimensions/size/content_type update.
+    pub async fn replace_file(
+        id: Uuid,
+        size_bytes: i64,
+        content_type: &str,
+        width: Option<i32>,
+        height: Option<i32>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE media
+            SET
+                size_bytes = $2,
+                content_type = $3,
+                width = $4,
+                height = $5,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(size_bytes)
+        .bind(content_type)
+        .bind(width)
+        .bind(height)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
     }
 
     /// Delete a media record.

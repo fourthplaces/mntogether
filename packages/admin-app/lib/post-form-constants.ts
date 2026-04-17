@@ -1,12 +1,17 @@
 // Shared constants and types for post forms (PostForm + PostEditorForm)
 // POST_TYPES and WEIGHTS are also used on the detail page for inline dropdowns.
 
+// Kept in sync with the 9-type enum from migration 216. Order reflects
+// rough "weight" in the newsroom: stories lead, references tail.
 export const POST_TYPES = [
   { value: "story", label: "Story" },
-  { value: "notice", label: "Notice" },
-  { value: "exchange", label: "Exchange" },
+  { value: "update", label: "Update" },
+  { value: "action", label: "Action" },
   { value: "event", label: "Event" },
-  { value: "spotlight", label: "Spotlight" },
+  { value: "need", label: "Need" },
+  { value: "aid", label: "Aid" },
+  { value: "person", label: "Person" },
+  { value: "business", label: "Business" },
   { value: "reference", label: "Reference" },
 ] as const;
 
@@ -30,7 +35,7 @@ export interface PostFormValues {
 export const DEFAULT_VALUES: PostFormValues = {
   title: "",
   bodyRaw: "",
-  postType: "notice",
+  postType: "update",
   weight: "medium",
   priority: 0,
   isUrgent: false,

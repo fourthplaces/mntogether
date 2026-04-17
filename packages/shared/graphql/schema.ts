@@ -79,7 +79,8 @@ type Query {
   editionPosts(editionId: ID!, slottedFilter: String, limit: Int, offset: Int): PostConnection!
 
   # Media Library (admin)
-  mediaLibrary(limit: Int, offset: Int, contentType: String): MediaConnection!
+  mediaLibrary(limit: Int, offset: Int, contentType: String, search: String, unusedOnly: Boolean): MediaConnection!
+  mediaUsage(mediaId: ID!): [MediaUsage!]!
   presignedUpload(filename: String!, contentType: String!, sizeBytes: Int!): PresignedUpload!
 }
 
@@ -104,9 +105,9 @@ type Mutation {
   updatePost(id: ID!, input: UpdatePostInput!): Post!
 
   # Post field group upserts (admin)
-  upsertPostMedia(postId: ID!, imageUrl: String, caption: String, credit: String): Boolean!
+  upsertPostMedia(postId: ID!, imageUrl: String, caption: String, credit: String, mediaId: ID): Boolean!
   upsertPostMeta(postId: ID!, kicker: String, byline: String, deck: String, updated: String): Boolean!
-  upsertPostPerson(postId: ID!, name: String, role: String, bio: String, photoUrl: String, quote: String): Boolean!
+  upsertPostPerson(postId: ID!, name: String, role: String, bio: String, photoUrl: String, quote: String, photoMediaId: ID): Boolean!
   upsertPostLink(postId: ID!, label: String, url: String, deadline: String): Boolean!
   upsertPostSourceAttr(postId: ID!, sourceName: String, attribution: String): Boolean!
   upsertPostDatetime(postId: ID!, startAt: String, endAt: String, cost: String, recurring: Boolean): Boolean!
@@ -180,6 +181,7 @@ type Mutation {
 
   # Media Library (admin)
   confirmUpload(storageKey: String!, publicUrl: String!, filename: String!, contentType: String!, sizeBytes: Int!, altText: String, width: Int, height: Int): Media!
+  updateMediaMetadata(id: ID!, altText: String, filename: String): Media!
   deleteMedia(id: ID!): Boolean!
 }
 
@@ -651,6 +653,8 @@ type BroadsheetMedia {
   imageUrl: String
   caption: String
   credit: String
+  """When present, the image came from the Media Library; otherwise it's a raw external URL."""
+  mediaId: ID
 }
 
 type BroadsheetItem {
@@ -664,6 +668,7 @@ type BroadsheetPerson {
   bio: String
   photoUrl: String
   quote: String
+  photoMediaId: ID
 }
 
 type BroadsheetLink {
@@ -765,12 +770,23 @@ type Media {
   width: Int
   height: Int
   createdAt: String!
+  updatedAt: String!
+  """Number of media_references rows pointing at this media (cheap join)."""
+  usageCount: Int!
 }
 
 type MediaConnection {
   media: [Media!]!
   totalCount: Int!
   hasNextPage: Boolean!
+}
+
+"""One row of usage for a Media — what entity references it + its display title."""
+type MediaUsage {
+  referenceableType: String!
+  referenceableId: ID!
+  fieldKey: String
+  title: String!
 }
 
 type PresignedUpload {

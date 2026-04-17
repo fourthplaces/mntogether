@@ -3,7 +3,9 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ImageIcon } from "lucide-react";
 import { EditableRow, EditorFooter, Empty } from "../EditableRow";
+import { MediaPicker, type PickedMedia } from "@/components/admin/MediaPicker";
 
 type Person = {
   name?: string | null;
@@ -11,20 +13,24 @@ type Person = {
   bio?: string | null;
   photoUrl?: string | null;
   quote?: string | null;
+  photoMediaId?: string | null;
 } | null;
+
+type PersonInput = {
+  name: string | null;
+  role: string | null;
+  bio: string | null;
+  photoUrl: string | null;
+  quote: string | null;
+  photoMediaId: string | null;
+};
 
 export function PersonRow({
   person,
   onSave,
 }: {
   person: Person;
-  onSave: (input: {
-    name: string | null;
-    role: string | null;
-    bio: string | null;
-    photoUrl: string | null;
-    quote: string | null;
-  }) => Promise<unknown>;
+  onSave: (input: PersonInput) => Promise<unknown>;
 }) {
   const hasContent = !!(person?.name || person?.role || person?.bio);
   const display = hasContent ? (
@@ -60,21 +66,27 @@ function Editor({
   onCancel,
 }: {
   person: Person;
-  onSave: (input: {
-    name: string | null;
-    role: string | null;
-    bio: string | null;
-    photoUrl: string | null;
-    quote: string | null;
-  }) => Promise<unknown>;
+  onSave: (input: PersonInput) => Promise<unknown>;
   onCancel: () => void;
 }) {
   const [name, setName] = React.useState(person?.name || "");
   const [role, setRole] = React.useState(person?.role || "");
   const [bio, setBio] = React.useState(person?.bio || "");
   const [photoUrl, setPhotoUrl] = React.useState(person?.photoUrl || "");
+  const [photoMediaId, setPhotoMediaId] = React.useState<string | null>(person?.photoMediaId ?? null);
   const [quote, setQuote] = React.useState(person?.quote || "");
   const [saving, setSaving] = React.useState(false);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+
+  const handlePick = (picked: PickedMedia) => {
+    setPhotoUrl(picked.url);
+    setPhotoMediaId(picked.id);
+  };
+
+  const clearPhoto = () => {
+    setPhotoUrl("");
+    setPhotoMediaId(null);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -85,6 +97,7 @@ function Editor({
         bio: bio.trim() || null,
         photoUrl: photoUrl.trim() || null,
         quote: quote.trim() || null,
+        photoMediaId,
       });
     } finally {
       setSaving(false);
@@ -108,11 +121,26 @@ function Editor({
         className="w-full rounded border border-border bg-card px-2 py-1.5 text-sm"
       />
 
-      <label className="block text-xs text-muted-foreground">Photo URL</label>
-      <Input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} placeholder="https://…" className="text-sm" />
-      {photoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photoUrl} alt="Person" className="h-24 w-24 rounded object-cover border border-border" />
+      <label className="block text-xs text-muted-foreground">Photo</label>
+      {photoUrl ? (
+        <div className="flex items-start gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photoUrl} alt="Person" className="h-20 w-20 rounded object-cover border border-border" />
+          <div className="flex flex-col gap-1 flex-1">
+            <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
+              <ImageIcon className="size-3.5 mr-1.5" />
+              Change
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearPhoto}>
+              Remove
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" size="sm" className="w-full" onClick={() => setPickerOpen(true)}>
+          <ImageIcon className="size-3.5 mr-1.5" />
+          Choose photo
+        </Button>
       )}
 
       <label className="block text-xs text-muted-foreground">Quote (optional)</label>
@@ -125,6 +153,13 @@ function Editor({
       />
 
       <EditorFooter onSave={handleSave} onCancel={onCancel} saving={saving} />
+
+      <MediaPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handlePick}
+        title="Choose person photo"
+      />
     </div>
   );
 }
