@@ -3,10 +3,15 @@
 import { useState, useCallback } from "react";
 import { useClient } from "urql";
 import { PresignedUploadQuery, ConfirmUploadMutation } from "@/lib/graphql/media";
+import { processImageForUpload } from "@/lib/image-processing";
 
 export interface UploadingFile {
+  /** The file actually being uploaded — may be a resized/recompressed
+   *  version of the one the user picked. */
   file: File;
-  progress: "requesting" | "uploading" | "confirming" | "done" | "error";
+  /** The original file the editor selected, for UI display / telemetry. */
+  originalFile?: File;
+  progress: "processing" | "requesting" | "uploading" | "confirming" | "done" | "error";
   error?: string;
   mediaId?: string;
   url?: string;
@@ -24,20 +29,38 @@ export function useMediaUpload() {
 
   const updateUpload = useCallback(
     (file: File, patch: Partial<UploadingFile>) => {
+      // Match on originalFile identity (stable across processing) OR current
+      // file reference (for legacy entries without an originalFile).
       setUploads((prev) =>
-        prev.map((u) => (u.file === file ? { ...u, ...patch } : u))
+        prev.map((u) => ((u.originalFile ?? u.file) === file ? { ...u, ...patch } : u))
       );
     },
     []
   );
 
   const uploadFile = useCallback(
-    async (file: File) => {
-      const entry: UploadingFile = { file, progress: "requesting" };
+    async (originalFile: File) => {
+      const entry: UploadingFile = { file: originalFile, originalFile, progress: "processing" };
       setUploads((prev) => [...prev, entry]);
+
+      // Step 0: Resize + recompress in-browser for images we handle. Silently
+      // passes through files we don't touch (PDFs, videos, svg, webp, etc.).
+      let file = originalFile;
+      try {
+        const result = await processImageForUpload(originalFile);
+        if (result.processed) {
+          file = result.file;
+          // Swap the file on the tracked upload entry so progress UIs that
+          // show size/filename reflect the processed version.
+          updateUpload(originalFile, { file });
+        }
+      } catch {
+        // If processing throws unexpectedly, fall through with the original.
+      }
 
       try {
         // Step 1: Get presigned URL
+        updateUpload(originalFile, { progress: "requesting" });
         const presignResult = await client.query(PresignedUploadQuery, {
           filename: file.name,
           contentType: file.type || "application/octet-stream",
@@ -54,7 +77,7 @@ export function useMediaUpload() {
           presignResult.data.presignedUpload;
 
         // Step 2: PUT file to S3
-        updateUpload(file, { progress: "uploading" });
+        updateUpload(originalFile, { progress: "uploading" });
 
         const putResponse = await fetch(uploadUrl, {
           method: "PUT",
@@ -69,7 +92,7 @@ export function useMediaUpload() {
         }
 
         // Step 3: Confirm upload
-        updateUpload(file, { progress: "confirming" });
+        updateUpload(originalFile, { progress: "confirming" });
 
         // Try to get image dimensions for images
         let width: number | undefined;
@@ -103,7 +126,7 @@ export function useMediaUpload() {
         }
 
         const media = confirmResult.data.confirmUpload;
-        updateUpload(file, {
+        updateUpload(originalFile, {
           progress: "done",
           mediaId: media.id,
           url: media.url,
@@ -113,7 +136,7 @@ export function useMediaUpload() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unknown upload error";
-        updateUpload(file, { progress: "error", error: message });
+        updateUpload(originalFile, { progress: "error", error: message });
         return null;
       }
     },

@@ -204,11 +204,13 @@ export default function MediaLibraryPage() {
                 </span>
               ) : (
                 <span className="text-xs font-medium text-info-text bg-info-bg px-2 py-0.5 rounded-full">
-                  {u.progress === "requesting"
-                    ? "Preparing..."
-                    : u.progress === "uploading"
-                      ? "Uploading..."
-                      : "Saving..."}
+                  {u.progress === "processing"
+                    ? "Resizing..."
+                    : u.progress === "requesting"
+                      ? "Preparing..."
+                      : u.progress === "uploading"
+                        ? "Uploading..."
+                        : "Saving..."}
                 </span>
               )}
             </div>
