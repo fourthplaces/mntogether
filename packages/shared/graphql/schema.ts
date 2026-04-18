@@ -254,6 +254,26 @@ type Post {
   postStatus: BroadsheetStatus
   schedule: [BroadsheetScheduleEntry!]!
   relatedPosts: [PublicPost!]!
+  # Every edition this post is currently slotted into. One entry per
+  # edition_slots row. See PostEditionSlotting for the per-edition shape.
+  editionSlottings: [PostEditionSlotting!]!
+}
+
+"""
+Summary of one placement of a post in an edition. Returned by
+Post.editionSlottings. Admin-only — reads through the server's
+/Post/{id}/edition_slottings endpoint which requires AdminUser.
+"""
+type PostEditionSlotting {
+  editionId: ID!
+  countyId: ID!
+  countyName: String!
+  periodStart: String!
+  periodEnd: String!
+  editionStatus: String!
+  editionTitle: String
+  slotId: ID!
+  postTemplate: String
 }
 
 type PostConnection {

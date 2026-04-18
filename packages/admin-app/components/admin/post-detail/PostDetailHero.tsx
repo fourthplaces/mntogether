@@ -18,6 +18,18 @@ import { PencilMarkPicker } from "./PencilMarkPicker";
 
 type PencilMark = "star" | "heart" | "smile" | "circle" | null;
 
+type EditionSlotting = {
+  editionId: string;
+  countyId: string;
+  countyName: string;
+  periodStart: string;
+  periodEnd: string;
+  editionStatus: string;
+  editionTitle?: string | null;
+  slotId: string;
+  postTemplate?: string | null;
+};
+
 type HeroPost = {
   id: string;
   title: string;
@@ -33,6 +45,7 @@ type HeroPost = {
   createdAt: string;
   publishedAt?: string | null;
   updatedAt: string;
+  editionSlottings?: EditionSlotting[] | null;
 };
 
 // submission_type values are constrained at the DB level to this set
@@ -67,6 +80,35 @@ function statusBadgeVariant(status: string): "success" | "warning" | "danger" | 
     case "archived": return "secondary";
     default: return "secondary";
   }
+}
+
+function editionStatusVariant(status: string): "success" | "warning" | "info" | "secondary" {
+  // Edition status lifecycle: draft → pending_review → approved → published
+  // → archived. Show published as success; in-flight as info/warning.
+  switch (status) {
+    case "published": return "success";
+    case "approved": return "info";
+    case "pending_review": return "warning";
+    case "draft": return "secondary";
+    case "archived": return "secondary";
+    default: return "secondary";
+  }
+}
+
+function formatPeriodRange(periodStart: string, periodEnd: string): string {
+  // Inputs are YYYY-MM-DD dates. Render as "Apr 12–18" when in the same
+  // month, else "Apr 28–May 4". Year is dropped for compactness; the
+  // tooltip carries the full dates.
+  const start = new Date(periodStart + "T00:00:00");
+  const end = new Date(periodEnd + "T00:00:00");
+  const sameMonth =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth();
+  const mo = (d: Date) => d.toLocaleDateString("en-US", { month: "short" });
+  if (sameMonth) {
+    return `${mo(start)} ${start.getDate()}–${end.getDate()}`;
+  }
+  return `${mo(start)} ${start.getDate()}–${mo(end)} ${end.getDate()}`;
 }
 
 function formatRelativeDate(dateString: string): { short: string; full: string } {
@@ -193,6 +235,53 @@ export function PostDetailHero({
             </span>
           </div>
         </div>
+
+        {/* Editions this post is slotted into — parent-relationship
+         * view. "In Editions" mirrors the "Notes" section's visual
+         * language so editors reading top-to-bottom see consistent
+         * chrome for "what references this post." Drafts suppress the
+         * empty state (of course a draft isn't slotted). */}
+        {(() => {
+          const slottings = post.editionSlottings ?? [];
+          if (slottings.length === 0) {
+            if (post.status === "draft") return null;
+            return (
+              <div className="mb-6 text-xs italic text-muted-foreground">
+                Not slotted into any edition yet.
+              </div>
+            );
+          }
+          return (
+            <div className="mb-6">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                In Editions ({slottings.length})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {slottings.map((s) => (
+                  <Link
+                    key={s.slotId}
+                    href={`/admin/editions/${s.editionId}`}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-secondary/30 hover:bg-secondary/60 transition-colors text-xs"
+                    title={`${s.countyName} · ${s.periodStart} to ${s.periodEnd}`}
+                  >
+                    <span className="font-medium text-foreground">
+                      {s.countyName}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {formatPeriodRange(s.periodStart, s.periodEnd)}
+                    </span>
+                    <Badge
+                      variant={editionStatusVariant(s.editionStatus)}
+                      className="text-[9px] px-1 py-0"
+                    >
+                      {s.editionStatus.replace(/_/g, " ")}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Broadsheet Display */}
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">

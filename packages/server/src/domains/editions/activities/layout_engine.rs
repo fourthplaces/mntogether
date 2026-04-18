@@ -1324,7 +1324,28 @@ async fn load_county_posts(
               )
             )
           )
-          AND (p.is_evergreen = true OR p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
+          AND (
+            p.is_evergreen = true
+            OR p.published_at IS NULL
+            OR p.published_at >= ($2::date - INTERVAL '7 days')
+            -- Future-event posts stay eligible right up until the event
+            -- occurs (capped at an 8-week horizon so we don't pull in
+            -- things scheduled far out). This matches editorial
+            -- intuition: an event 3 weeks away should appear in the
+            -- next 3 editions, not just the one published during the
+            -- writing week. Only one-off events (`rrule IS NULL`) are
+            -- considered — recurring schedules are usually operating
+            -- hours for evergreen posts, which already pass above.
+            OR EXISTS (
+              SELECT 1 FROM schedules s
+              WHERE s.schedulable_type = 'post'
+                AND s.schedulable_id = p.id
+                AND s.rrule IS NULL
+                AND s.dtstart IS NOT NULL
+                AND s.dtstart::date >= $2::date
+                AND s.dtstart::date < ($2::date + INTERVAL '8 weeks')
+            )
+          )
         ORDER BY p.priority DESC NULLS LAST
         "#,
     )

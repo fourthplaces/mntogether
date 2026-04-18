@@ -138,6 +138,17 @@ export const PostDetailFullQuery = graphql(`
         id
         name
       }
+      editionSlottings {
+        editionId
+        countyId
+        countyName
+        periodStart
+        periodEnd
+        editionStatus
+        editionTitle
+        slotId
+        postTemplate
+      }
     }
     entityNotes(noteableType: "post", noteableId: $id) {
       ...NoteFields

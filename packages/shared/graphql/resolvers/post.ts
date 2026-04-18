@@ -501,6 +501,36 @@ export const postResolvers = {
       return parent.urgentNotes ?? [];
     },
 
+    // Editions currently slotting this post. Lazy-loaded on request so
+    // list queries don't pay the JOIN cost; the hero header on the
+    // post-detail page fetches it.
+    editionSlottings: async (
+      parent: { id: string; editionSlottings?: unknown[] },
+      _args: unknown,
+      ctx: GraphQLContext,
+    ) => {
+      if (parent.editionSlottings) return parent.editionSlottings;
+      const res = await ctx.server.callService<{ slottings: unknown[] }>(
+        "Post",
+        `${parent.id}/edition_slottings`,
+        {},
+      );
+      return (res.slottings ?? []).map((s: unknown) => {
+        const r = s as Record<string, unknown>;
+        return {
+          editionId: r.edition_id ?? r.editionId,
+          countyId: r.county_id ?? r.countyId,
+          countyName: r.county_name ?? r.countyName,
+          periodStart: r.period_start ?? r.periodStart,
+          periodEnd: r.period_end ?? r.periodEnd,
+          editionStatus: r.edition_status ?? r.editionStatus,
+          editionTitle: r.edition_title ?? r.editionTitle ?? null,
+          slotId: r.slot_id ?? r.slotId,
+          postTemplate: r.post_template ?? r.postTemplate ?? null,
+        };
+      });
+    },
+
     bodyAst: (parent: { body_ast?: unknown; bodyAst?: unknown }) => {
       const ast = parent.body_ast ?? parent.bodyAst;
       if (!ast) return null;

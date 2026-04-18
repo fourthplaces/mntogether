@@ -2125,6 +2125,31 @@ pub struct PostFieldGroupsResult {
     pub schedule: Vec<crate::domains::posts::models::PostScheduleEntry>,
 }
 
+// =============================================================================
+// Edition slottings — which editions currently include this post
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct PostEditionSlottingsResult {
+    pub slottings: Vec<crate::domains::posts::models::PostEditionSlotting>,
+}
+
+/// Return every edition_slots row pointing at this post, enriched with
+/// edition + county context. Used by the admin to show "this post is
+/// slotted into N editions" in the hero header.
+async fn get_edition_slottings(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+) -> ApiResult<Json<PostEditionSlottingsResult>> {
+    let slottings = Post::find_edition_slottings(
+        PostId::from_uuid(post_id),
+        &state.deps.db_pool,
+    )
+    .await?;
+    Ok(Json(PostEditionSlottingsResult { slottings }))
+}
+
 async fn get_field_groups(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2432,6 +2457,8 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/get_revision", post(get_revision))
         // Field groups
         .route("/Post/{id}/related", post(get_related_posts))
+        // Edition slottings (read-only, admin)
+        .route("/Post/{id}/edition_slottings", post(get_edition_slottings))
         // Field groups
         .route("/Post/{id}/field_groups", post(get_field_groups))
         .route("/Post/{id}/upsert_media", post(upsert_post_media))

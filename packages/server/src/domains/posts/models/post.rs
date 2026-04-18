@@ -86,6 +86,22 @@ pub struct Post {
     pub search_vector: Option<String>,
 }
 
+/// A summary of one `edition_slots` row pointing at a post, joined with
+/// its edition + county for display. See `Post::find_edition_slottings`
+/// for the query that produces these.
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct PostEditionSlotting {
+    pub edition_id: Uuid,
+    pub county_id: Uuid,
+    pub county_name: String,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+    pub edition_status: String,
+    pub edition_title: Option<String>,
+    pub slot_id: Uuid,
+    pub post_template: Option<String>,
+}
+
 /// Post with distance info for proximity search
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PostWithDistance {
@@ -485,6 +501,47 @@ impl Post {
             .fetch_optional(pool)
             .await?;
         Ok(post)
+    }
+
+    /// Every edition this post is currently slotted into — one row per
+    /// `edition_slots` entry pointing at the post. Joins through
+    /// `edition_rows` → `editions` → `counties` so callers get the full
+    /// human context (county name, edition dates, status) in a single
+    /// query. Ordered by period_start DESC so the most recent edition
+    /// leads.
+    ///
+    /// A post with `is_evergreen = true` or a `statewide` tag can end up
+    /// in many editions simultaneously — this method treats that as
+    /// normal, not something to cap. Callers that want a compact UI
+    /// should decide their own display limits.
+    pub async fn find_edition_slottings(
+        post_id: PostId,
+        pool: &PgPool,
+    ) -> Result<Vec<PostEditionSlotting>> {
+        sqlx::query_as::<_, PostEditionSlotting>(
+            r#"
+            SELECT
+                e.id AS edition_id,
+                e.county_id,
+                c.name AS county_name,
+                e.period_start,
+                e.period_end,
+                e.status AS edition_status,
+                e.title AS edition_title,
+                es.id AS slot_id,
+                es.post_template
+            FROM edition_slots es
+            INNER JOIN edition_rows er ON es.edition_row_id = er.id
+            INNER JOIN editions e ON er.edition_id = e.id
+            INNER JOIN counties c ON e.county_id = c.id
+            WHERE es.post_id = $1
+            ORDER BY e.period_start DESC, c.name ASC
+            "#,
+        )
+        .bind(post_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Find listings by status
