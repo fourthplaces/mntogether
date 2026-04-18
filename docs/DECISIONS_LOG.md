@@ -297,6 +297,66 @@ Save is short enough that locking editing is just stutter.
 
 ---
 
+## 2026-04 early — Session: Layout Engine Tuning
+
+> Reconstructed from session transcripts by a subagent. Numerical
+> specifics (post counts, template coverage) came from the recorded
+> debugging sessions; included as context even though the reasoning
+> has been summarized.
+
+### Specialty-first template order + scoring boost
+
+**Decision:** Sort templates specialty-first during selection and
+apply a 2.0× scoring multiplier to specialty templates (alert-notice,
+card-event, generous-exchange, etc.) so they win against generic
+templates when both are compatible.
+
+**Reasoning:**
+- **Problem:** 7 of 16 specialty templates were dormant — never
+  appeared in editions. Generic templates (gazette, bulletin)
+  consumed the available posts first, leaving nothing for
+  type-restricted specialty templates to bind to.
+- **Alternative considered:** Bumping the existing novelty boost
+  (1.5×) or just increasing row count. Both insufficient — generic
+  templates with more fillable slots kept outscoring specialties
+  even with novelty favor.
+- **Trade-off:** Generic templates fill slightly later in the
+  selection order, but edition variety jumped from 5–7 templates
+  used per edition to 12–14. Specialty-first doesn't starve
+  generics; they fill with the remaining pool.
+
+### Dynamic slot counts + Phase 4 spillover + filler
+
+**Decision:** Replace exact slot counts with min/max ranges on row
+templates; add a Phase 4 spillover pass that greedily packs
+remaining posts into catchall rows; seed 14 statewide filler posts
+at low priority as a last resort for sparse broadsheets.
+
+**Reasoning:**
+- **Problem:** Small counties had posts orphaned because the engine
+  was a strict constraint satisfier — rows emit only when every
+  slot fills exactly. Aitkin (25 eligible posts) was placing only
+  17–19 of them; the remainder sat on the bench despite fitting
+  editorial criteria.
+- **Alternative considered:** Add more templates. Rejected —
+  template variety doesn't solve scarcity. Sparse pools still leave
+  gaps that a strict engine won't close.
+- **Three-part fix:**
+  1. Count ranges (`count_min`/`count_max`) let templates declare
+     "1 to 3 lights, any type" instead of "exactly 3."
+  2. Phase 4 runs after strict placement finishes and packs
+     leftovers into catchall rows — a "community digest" section
+     instead of silent dropoff.
+  3. Filler content (tax help, voter info, ice safety, etc.)
+     tagged `statewide` at low priority — invisible on dense
+     broadsheets, visible on sparse ones.
+- **Trade-off:** Sparse editions end with lower-priority content.
+  Dense editions never see filler because priority sorting keeps
+  it out. Target is 100% placement of editorially-relevant content
+  without compromising big-county quality.
+
+---
+
 ## 2026-03-17 — Session: Prototype Gap Analysis
 
 ### Posts vs Widgets: Why they have different storage strategies
