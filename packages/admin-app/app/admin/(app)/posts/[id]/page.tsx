@@ -46,7 +46,7 @@ export default function PostDetailPage() {
   const [isTagsBusy, setIsTagsBusy] = useState(false);
 
   // GraphQL
-  const [{ data: postData, fetching: isLoading, error }] = useQuery({
+  const [{ data: postData, fetching: isLoading, error }, reexecutePostQuery] = useQuery({
     query: PostDetailFullQuery,
     variables: { id: postId },
   });
@@ -250,6 +250,7 @@ export default function PostDetailPage() {
               onRemoveTag: handleRemoveTag,
               disabled: isTagsBusy,
             }}
+            onNoteCreated={() => reexecutePostQuery({ requestPolicy: "network-only" })}
           />
         </div>
       </main>

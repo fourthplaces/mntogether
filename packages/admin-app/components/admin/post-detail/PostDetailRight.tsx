@@ -3,8 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ExternalLink, Plus } from "lucide-react";
 import { TagsSection } from "@/components/admin/TagsSection";
+import { AddNoteDialog } from "@/components/admin/AddNoteDialog";
 import { OrganizationRow } from "./rows/OrganizationRow";
 import { LocationRow } from "./rows/LocationRow";
 import { ContactsRow } from "./rows/ContactsRow";
@@ -77,12 +79,17 @@ export function PostDetailRight({
   notes,
   actions,
   tagsData,
+  onNoteCreated,
 }: {
   post: RightPost;
   notes: Note[];
   actions: Actions;
   tagsData: TagsData;
+  /** Called after a new note is created so the parent can refetch. */
+  onNoteCreated?: () => void;
 }) {
+  const [addNoteOpen, setAddNoteOpen] = React.useState(false);
+
   return (
     <div className="space-y-6">
       {/* Primary info — static by default, click to edit */}
@@ -140,12 +147,20 @@ export function PostDetailRight({
         disabled={tagsData.disabled}
       />
 
-      {/* Notes */}
-      {notes.length > 0 && (
-        <section>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-            Notes ({notes.length})
+      {/* Notes — always rendered so the "Add note" affordance is
+       * discoverable even when the post has none yet. */}
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Notes{notes.length > 0 ? ` (${notes.length})` : ""}
           </h3>
+          <Button variant="outline" size="xs" onClick={() => setAddNoteOpen(true)}>
+            <Plus className="size-3 mr-1" /> Add note
+          </Button>
+        </div>
+        {notes.length === 0 ? (
+          <p className="text-sm text-text-faint italic">No notes on this post.</p>
+        ) : (
           <div className="space-y-2">
             {notes.map((note) => {
               const isExpired = !!note.expiredAt;
@@ -154,9 +169,10 @@ export function PostDetailRight({
                   note.severity === "notice" ? "warning" : "info";
               const otherLinks = (note.linkedPosts ?? []).filter((p) => p.id !== post.id);
               return (
-                <div
+                <Link
                   key={note.id}
-                  className={`p-3 rounded-lg border ${isExpired ? "border-border bg-secondary opacity-60" : "border-border bg-card"}`}
+                  href={`/admin/notes/${note.id}`}
+                  className={`block p-3 rounded-lg border hover:border-foreground/20 transition-colors ${isExpired ? "border-border bg-secondary opacity-60" : "border-border bg-card"}`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Badge variant={severityVariant}>{note.severity}</Badge>
@@ -168,7 +184,7 @@ export function PostDetailRight({
                   </div>
                   <p className="text-sm text-foreground">{note.content}</p>
                   {note.sourceUrl && (
-                    <a href={note.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-link hover:text-link-hover mt-1 inline-block">
+                    <a href={note.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-link hover:text-link-hover mt-1 inline-block">
                       Source <ExternalLink className="inline w-3 h-3 ml-0.5" />
                     </a>
                   )}
@@ -176,23 +192,30 @@ export function PostDetailRight({
                     <div className="flex flex-wrap items-center gap-1 mt-1.5">
                       <span className="text-xs text-muted-foreground">Also on:</span>
                       {otherLinks.map((p) => (
-                        <Link
+                        <span
                           key={p.id}
-                          href={`/admin/posts/${p.id}`}
-                          className="text-xs px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded hover:bg-accent hover:text-accent-foreground transition-colors truncate max-w-[200px]"
+                          className="text-xs px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded truncate max-w-[200px]"
                           title={p.title}
                         >
                           {p.title}
-                        </Link>
+                        </span>
                       ))}
                     </div>
                   )}
-                </div>
+                </Link>
               );
             })}
           </div>
-        </section>
-      )}
+        )}
+      </section>
+
+      <AddNoteDialog
+        open={addNoteOpen}
+        onOpenChange={setAddNoteOpen}
+        noteableType="post"
+        noteableId={post.id}
+        onCreated={() => onNoteCreated?.()}
+      />
 
       {/* Lineage — only shown when this post is a revision/translation/duplicate */}
       {(post.revisionOfPostId || post.translationOfId || post.duplicateOfId) && (

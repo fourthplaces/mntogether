@@ -7,7 +7,9 @@ import { useQuery, useMutation } from "urql";
 import {
   ArrowLeft,
   Building2,
+  ExternalLink,
   MoreHorizontal,
+  Plus,
   Trash2,
   User,
 } from "lucide-react";
@@ -54,6 +56,7 @@ import {
   RemoveOrgTagMutation,
 } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
+import { AddNoteDialog } from "@/components/admin/AddNoteDialog";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -104,14 +107,18 @@ export default function OrganizationDetailPage() {
   const [suspendReason, setSuspendReason] = useState("");
 
   // --- Data query ---
-  const [{ data: orgData, fetching: orgLoading, error: orgError }] = useQuery({
-    query: OrganizationDetailFullQuery,
-    variables: { id: orgId },
-  });
+  const [{ data: orgData, fetching: orgLoading, error: orgError }, reexecuteOrgQuery] =
+    useQuery({
+      query: OrganizationDetailFullQuery,
+      variables: { id: orgId },
+    });
 
   const org = orgData?.organization;
   const posts = org?.posts?.posts || [];
   const checklist = org?.checklist;
+  const notes = org?.notes || [];
+
+  const [addNoteOpen, setAddNoteOpen] = useState(false);
 
   // --- Mutations ---
   const [, updateOrg] = useMutation(UpdateOrganizationMutation);
@@ -501,6 +508,60 @@ export default function OrganizationDetailPage() {
               />
             </div>
 
+            {/* Notes — same visual language as the post detail's Notes
+             * section; always render so the "Add note" affordance is
+             * discoverable even when the org has none yet. */}
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <SectionLabel>
+                  Notes{notes.length > 0 ? ` (${notes.length})` : ""}
+                </SectionLabel>
+                <Button variant="outline" size="xs" onClick={() => setAddNoteOpen(true)}>
+                  <Plus className="size-3 mr-1" /> Add note
+                </Button>
+              </div>
+              {notes.length === 0 ? (
+                <p className="text-sm text-text-faint italic">No notes on this organization.</p>
+              ) : (
+                <div className="space-y-2">
+                  {notes.map((note) => {
+                    const isExpired = !!note.expiredAt;
+                    const severityVariant: "danger" | "warning" | "info" =
+                      note.severity === "urgent" ? "danger" :
+                        note.severity === "notice" ? "warning" : "info";
+                    return (
+                      <Link
+                        key={note.id}
+                        href={`/admin/notes/${note.id}`}
+                        className={`block p-3 rounded-lg border hover:border-foreground/20 transition-colors ${isExpired ? "border-border bg-secondary opacity-60" : "border-border bg-card"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant={severityVariant}>{note.severity}</Badge>
+                          {note.isPublic && <Badge variant="success">public</Badge>}
+                          {isExpired && <Badge variant="secondary">expired</Badge>}
+                          <span className="text-xs text-muted-foreground">
+                            {note.createdBy} · {new Date(note.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground">{note.content}</p>
+                        {note.sourceUrl && (
+                          <a
+                            href={note.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-link hover:text-link-hover mt-1 inline-block"
+                          >
+                            Source <ExternalLink className="inline w-3 h-3 ml-0.5" />
+                          </a>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Pre-Launch Checklist */}
             {org.status === "pending_review" && checklist && (
               <div className="border-t border-border pt-4">
@@ -568,6 +629,16 @@ export default function OrganizationDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Add Note Dialog ───────────────────────────────────── */}
+      <AddNoteDialog
+        open={addNoteOpen}
+        onOpenChange={setAddNoteOpen}
+        noteableType="organization"
+        noteableId={orgId}
+        entityLabel={org.name}
+        onCreated={() => reexecuteOrgQuery({ requestPolicy: "network-only" })}
+      />
 
       {/* ── Suspend Dialog ────────────────────────────────────── */}
       <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>

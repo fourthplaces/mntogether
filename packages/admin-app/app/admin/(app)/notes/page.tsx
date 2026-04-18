@@ -27,7 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { NotesListQuery, DeleteNoteMutation } from "@/lib/graphql/notes";
 import { Alert } from "@/components/ui/alert";
-import { Trash2, ExternalLink, AlertTriangle, Info, Bell } from "lucide-react";
+import { Trash2, ExternalLink, AlertTriangle, Info, Bell, Plus } from "lucide-react";
+import { NewNoteDialog } from "@/components/admin/NewNoteDialog";
 
 // ─── Types & config ─────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ export default function NotesPage() {
     id: string;
     content: string;
   } | null>(null);
+  const [showNewNote, setShowNewNote] = useState(false);
 
   const pagination = useOffsetPagination({ pageSize: 30 });
 
@@ -95,7 +97,7 @@ export default function NotesPage() {
 
   // ─── Queries ──────────────────────────────────────────────────────
 
-  const [{ data, fetching, error }] = useQuery({
+  const [{ data, fetching, error }, reexecuteNotes] = useQuery({
     query: NotesListQuery,
     variables: {
       severity: severityFilter || null,
@@ -137,6 +139,10 @@ export default function NotesPage() {
               {totalCount.toLocaleString()} notes
             </p>
           </div>
+          <Button onClick={() => setShowNewNote(true)}>
+            <Plus className="size-4 mr-1" />
+            New note
+          </Button>
         </div>
 
         {/* Filter rows */}
@@ -313,6 +319,14 @@ export default function NotesPage() {
             </>
           )
         )}
+
+        {/* New note dialog — entity picker + note fields. Refetches
+         * the list on success so the new row appears at the top. */}
+        <NewNoteDialog
+          open={showNewNote}
+          onOpenChange={setShowNewNote}
+          onCreated={() => reexecuteNotes({ requestPolicy: "network-only" })}
+        />
 
         {/* Delete confirmation dialog */}
         <Dialog
