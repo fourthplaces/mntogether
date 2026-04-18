@@ -22,6 +22,9 @@ export { AddressBPlugin, ADDRESS_B_KEY } from "./address-b-plugin";
 export { PhoneAPlugin, PHONE_A_KEY } from "./phone-a-plugin";
 export { PhoneBPlugin, PHONE_B_KEY } from "./phone-b-plugin";
 
+// Editor-root plugins (no node type — render.aboveSlate only)
+export { PhotoPickerPlugin, usePhotoPicker } from "./photo-picker-plugin";
+
 // Notion-style block types
 export { TodoPlugin, TODO_KEY } from "./todo-plugin";
 export { TogglePlugin, TOGGLE_KEY } from "./toggle-plugin";

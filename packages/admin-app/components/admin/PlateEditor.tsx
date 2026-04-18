@@ -20,7 +20,6 @@ import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import { useMediaUpload } from "@/lib/hooks/useMediaUpload";
 import { PHOTO_A_KEY } from "./plate-plugins/photo-a-plugin";
-import { PhotoPickerProvider } from "./plate-plugins/photo-picker-context";
 import {
   BoldPlugin,
   ItalicPlugin,
@@ -50,6 +49,7 @@ import {
   ResourceListPlugin,
   PhotoAPlugin,
   PhotoBPlugin,
+  PhotoPickerPlugin,
   AudioAPlugin,
   AudioBPlugin,
   KickerAPlugin,
@@ -189,6 +189,10 @@ const ALL_PLUGINS = [
   // Custom blocks — media
   PhotoAPlugin,
   PhotoBPlugin,
+  // Editor-root: one shared MediaPicker opened by any photo block via
+  // usePhotoPicker(). Mounts via render.aboveSlate (same shape as the
+  // DndPlugin's DndProvider wiring above).
+  PhotoPickerPlugin,
   AudioAPlugin,
   AudioBPlugin,
   // Custom blocks — structure
@@ -318,23 +322,21 @@ export function PlateEditor({
   );
 
   return (
-    <PhotoPickerProvider>
-      <Plate editor={editor} onChange={handleChange}>
-        <PlateContent
-          placeholder={placeholder}
-          disabled={disabled}
-          className="body-a focus:outline-none"
-          onKeyDown={handleKeyDown}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        />
-        <FloatingToolbar editor={editor} />
-        <SlashCommandMenu
-          editor={editor}
-          open={slashMenuOpen}
-          onClose={() => setSlashMenuOpen(false)}
-        />
-      </Plate>
-    </PhotoPickerProvider>
+    <Plate editor={editor} onChange={handleChange}>
+      <PlateContent
+        placeholder={placeholder}
+        disabled={disabled}
+        className="body-a focus:outline-none"
+        onKeyDown={handleKeyDown}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      />
+      <FloatingToolbar editor={editor} />
+      <SlashCommandMenu
+        editor={editor}
+        open={slashMenuOpen}
+        onClose={() => setSlashMenuOpen(false)}
+      />
+    </Plate>
   );
 }

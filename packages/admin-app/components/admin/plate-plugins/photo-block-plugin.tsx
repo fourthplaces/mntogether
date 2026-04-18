@@ -17,7 +17,7 @@ import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
 import { ArrowRightLeft, ImageIcon } from "lucide-react";
-import { usePhotoPicker } from "./photo-picker-context";
+import { usePhotoPicker } from "./photo-picker-plugin";
 import type { PickedMedia } from "@/components/admin/MediaPicker";
 
 export const PHOTO_BLOCK_KEY = "photo_block";
