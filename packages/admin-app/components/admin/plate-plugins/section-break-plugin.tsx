@@ -5,6 +5,11 @@
  *
  * Node type: "section_break"
  * Void: true (no editable content)
+ *
+ * The `· · ·` glyphs go inside a `contentEditable={false}` wrapper so
+ * browsers don't put a text caret in them. Void elements still get
+ * Slate's zero-width `{children}` rendered — that stays outside the
+ * non-editable wrapper as usual.
  */
 
 import React from "react";
@@ -17,7 +22,9 @@ export function SectionBreakElement(props: PlateElementProps) {
   const { children, ...rest } = props;
   return (
     <PlateElement {...rest} className="section-break">
-      · · ·
+      <span contentEditable={false} style={{ userSelect: "none" }}>
+        · · ·
+      </span>
       {children}
     </PlateElement>
   );

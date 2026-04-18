@@ -18,6 +18,9 @@ import type { Value, TElement, Path } from "platejs";
 import { NodeIdPlugin } from "platejs";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
+import { useMediaUpload } from "@/lib/hooks/useMediaUpload";
+import { PHOTO_A_KEY } from "./plate-plugins/photo-a-plugin";
+import { PhotoPickerProvider } from "./plate-plugins/photo-picker-context";
 import {
   BoldPlugin,
   ItalicPlugin,
@@ -247,6 +250,51 @@ export function PlateEditor({
     []
   );
 
+  // File-drop: drop an image onto the body editor to upload it to the Media
+  // Library and insert a photo_a (full-width) node at the end of the
+  // document. Dropping multiple images appends them in order. Non-image
+  // files are ignored.
+  //
+  // We append rather than trying to place at the drop position because
+  // mapping a DOM point back to a Slate path is fiddly and the block-level
+  // DnD (already wired) lets editors drag the new block into place in one
+  // motion. Predictable beats clever here.
+  const { uploadFiles } = useMediaUpload();
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer?.types.includes("Files")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      const files = Array.from(e.dataTransfer?.files || []).filter((f) =>
+        f.type.startsWith("image/"),
+      );
+      if (files.length === 0) return;
+      // Only swallow the event if we're actually going to handle it — leaves
+      // non-image drops to react-dnd / browser default behavior.
+      e.preventDefault();
+      e.stopPropagation();
+      const uploaded = await uploadFiles(files);
+      for (const m of uploaded) {
+        if (!m) continue;
+        editor.tf.insertNodes(
+          {
+            type: PHOTO_A_KEY,
+            src: m.url,
+            mediaId: m.id,
+            caption: "",
+            credit: "",
+            children: [{ text: "" }],
+          } as TElement,
+          { at: [editor.children.length] },
+        );
+      }
+    },
+    [editor, uploadFiles],
+  );
+
   // Handle "/" key to open slash command menu
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -270,19 +318,23 @@ export function PlateEditor({
   );
 
   return (
-    <Plate editor={editor} onChange={handleChange}>
-      <PlateContent
-        placeholder={placeholder}
-        disabled={disabled}
-        className="body-a focus:outline-none"
-        onKeyDown={handleKeyDown}
-      />
-      <FloatingToolbar editor={editor} />
-      <SlashCommandMenu
-        editor={editor}
-        open={slashMenuOpen}
-        onClose={() => setSlashMenuOpen(false)}
-      />
-    </Plate>
+    <PhotoPickerProvider>
+      <Plate editor={editor} onChange={handleChange}>
+        <PlateContent
+          placeholder={placeholder}
+          disabled={disabled}
+          className="body-a focus:outline-none"
+          onKeyDown={handleKeyDown}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        />
+        <FloatingToolbar editor={editor} />
+        <SlashCommandMenu
+          editor={editor}
+          open={slashMenuOpen}
+          onClose={() => setSlashMenuOpen(false)}
+        />
+      </Plate>
+    </PhotoPickerProvider>
   );
 }

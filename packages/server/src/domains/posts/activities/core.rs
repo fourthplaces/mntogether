@@ -379,6 +379,75 @@ pub async fn admin_update_post(
     )
     .await?;
 
+    // Reconcile post_body media references from the saved AST. Walks the
+    // tree for any `mediaId` string (photo_a / photo_b / photo_block nodes
+    // all use the same attribute name) and rebuilds the ref set for this
+    // post's body. Raw pasted URLs without a mediaId don't count — only
+    // library-backed media flows through here. Always reconcile (even if
+    // body_ast is None) so stale references get cleared when a post drops
+    // all its images.
+    let media_ids = post
+        .body_ast
+        .as_ref()
+        .map(extract_body_media_ids)
+        .unwrap_or_default();
+    let desired: Vec<crate::domains::media::models::DesiredRef> = media_ids
+        .into_iter()
+        .map(|mid| crate::domains::media::models::DesiredRef {
+            media_id: mid,
+            field_key: None,
+        })
+        .collect();
+    crate::domains::media::models::MediaReference::reconcile(
+        "post_body",
+        post.id.into_uuid(),
+        &desired,
+        &deps.db_pool,
+    )
+    .await?;
+
     Ok(post)
+}
+
+/// Walk a Plate/Slate JSON body tree and collect every distinct `mediaId`
+/// value that parses as a UUID. Used to reconcile `media_references` for
+/// `post_body` on every post save.
+///
+/// Order is insertion order of first appearance; duplicates are collapsed.
+/// Accepts any JSON shape — non-object/array nodes are skipped silently.
+fn extract_body_media_ids(value: &serde_json::Value) -> Vec<Uuid> {
+    let mut out: Vec<Uuid> = Vec::new();
+    let mut seen: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+    walk_for_media_ids(value, &mut out, &mut seen);
+    out
+}
+
+fn walk_for_media_ids(
+    value: &serde_json::Value,
+    out: &mut Vec<Uuid>,
+    seen: &mut std::collections::HashSet<Uuid>,
+) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(id_str) = map.get("mediaId").and_then(|v| v.as_str()) {
+                if let Ok(uuid) = Uuid::parse_str(id_str) {
+                    if seen.insert(uuid) {
+                        out.push(uuid);
+                    }
+                }
+            }
+            // Descend into nested children (photo blocks are void but a
+            // general walk keeps this safe against future node shapes).
+            for v in map.values() {
+                walk_for_media_ids(v, out, seen);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                walk_for_media_ids(v, out, seen);
+            }
+        }
+        _ => {}
+    }
 }
 

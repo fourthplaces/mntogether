@@ -393,13 +393,18 @@ export default function EditPostPage() {
             />
           </div>
 
-          {/* Body — Plate.js WYSIWYG with broadsheet styling */}
+          {/* Body — Plate.js WYSIWYG with broadsheet styling.
+           *
+           * Intentionally NOT disabled on save — flipping the editor to
+           * readOnly for the mutation duration was killing the DndPlugin's
+           * block gutters and they wouldn't come back until a full refresh.
+           * The other inline fields (title, kicker, deck) aren't disabled
+           * during save either, so dropping it here matches the rest. */}
           <PlateEditor
             key={postId}
             initialValue={parsedInitialAst}
             onChange={handleBodyAstChange}
             placeholder="Write your story..."
-            disabled={saving}
           />
 
           {/* Person pull quote (spotlight only) */}
