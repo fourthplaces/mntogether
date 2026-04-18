@@ -36,7 +36,7 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 - [Data Model](architecture/DATA_MODEL.md) - Core entity relationships
 - [Simplified Schema](architecture/SIMPLIFIED_SCHEMA.md) - Minimal schema philosophy
 - [Tags vs Fields](architecture/TAGS_VS_FIELDS.md) - Data modeling decisions
-- [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate bypass, webhook integration)
+- [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate removal, webhook integration)
 - [Root Signal Spec](architecture/ROOT_SIGNAL_SPEC.md) - Root Signal API contract (draft)
 - [Docker Architecture](architecture/DOCKER_ARCHITECTURE.md) - Docker dev environment: volumes, build pipeline, and trade-offs
 - [Design Tokens](architecture/DESIGN_TOKENS.md) - Design system tokens
@@ -61,7 +61,7 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 ### Development Guides
 - [API Integration Guide](guides/API_INTEGRATION_GUIDE.md) - Working with the GraphQL API
 - [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
-- [Testing Workflows](guides/TESTING_WORKFLOWS.md) - Restate workflow testing guide
+- [Testing Workflows](guides/TESTING_WORKFLOWS.md) - Test-driven development + API-edge testing guide
 - [Post ↔ Edition Lifecycle](guides/POST_EDITION_LIFECYCLE.md) - How posts become eligible for editions, multi-edition reuse, and the Root Signal dedup design
 - [Root Signal Ingest Spec](guides/ROOT_SIGNAL_INGEST_SPEC.md) - Post contract Root Signal must honor (draft)
 - [Root Signal Media Ingest](guides/ROOT_SIGNAL_MEDIA_INGEST.md) - Design proposal: fetch + store external images on ingest (not built)

@@ -105,7 +105,7 @@ CREATE TABLE search_results (
 
 ### Activities Must Be Pure Functions
 
-Activities take `&ServerDeps` explicitly and return simple values. All business logic lives in activities, not in Restate handlers.
+Activities take `&ServerDeps` explicitly and return simple values. All business logic lives in activities, not in HTTP handlers.
 
 ```rust
 pub async fn approve_post(

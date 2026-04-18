@@ -130,5 +130,5 @@ Explicitly punted. These have plans/specs but are not on the active roadmap.
 | `status/BROADSHEET_DESIGN_IMPORT.md` | Says migrations 183/184 "NOT YET APPLIED" — applied long ago (schema now at 211) |
 | `architecture/ROOT_EDITORIAL_PIVOT.md` | Lists Q1–Q10 open questions, several answered by implementation. Needs pass to close resolved Qs. |
 | `architecture/DATABASE_SCHEMA.md` | Covers through migration 171, schema now at 211. Still documents dropped tables. References `description`/`summary` columns (now `body_raw`, summary dropped). |
-| `guides/TESTING_WORKFLOWS.md` | References Restate workflow testing patterns that may have shifted. |
+| `guides/TESTING_WORKFLOWS.md` | Filename is a historical artifact (Restate is gone) — content was rewritten to reflect current TDD / API-edge testing. Consider renaming the file. |
 | `status/FINAL_SCHEMA_SUMMARY.md` | May reference `description`/`description_markdown`/`summary` columns — renamed/dropped in migration 211. |

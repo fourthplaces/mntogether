@@ -114,15 +114,19 @@ Stored in `schedules` with polymorphic `schedulable_type = 'post'`. Contains day
 
 ## Architecture Notes
 
-### GraphQL API via Restate
+### GraphQL API
 
-The frontend talks to the Rust server through the Restate runtime, which provides durable workflow execution:
+The frontend talks to the Rust server through GraphQL resolvers that
+execute in-process in the Next.js API routes. Resolvers translate
+GraphQL fields into HTTP calls against the Axum server:
 
 ```
-Browser --> Next.js App (3000/3001) --> Restate Runtime (8180) --> Rust Server (9080)
+Browser --> Next.js App (3000/3001) --> GraphQL resolvers --> Rust Server (9080)
 ```
 
-The admin-app and web-app both communicate with the backend via GraphQL, with the shared package defining the schema types.
+The admin-app and web-app both communicate with the backend via
+GraphQL, with the `shared` package defining the schema types and the
+resolvers that delegate to the Rust HTTP API.
 
 ### Filter queries join through tags
 
@@ -140,9 +144,9 @@ The `find_public_for_post_ids` query joins `tags.kind` to `tag_kinds.slug` and f
 |---|---|---|
 | Admin App (Next.js) | 3000 | CMS admin panel |
 | Web App (Next.js) | 3001 | Public site |
-| Rust Server | 9080 | Restate workflow services |
-| Restate Runtime | 8180 (ingress), 9070 (admin) | Workflow orchestration |
+| Rust Server | 9080 | Axum HTTP/JSON API + SSE streams |
 | PostgreSQL | 5432 | pgvector (see docker-compose.yml for credentials) |
+| MinIO | 9000 (API), 9001 (console) | S3-compatible media storage |
 
 ## Test Auth
 

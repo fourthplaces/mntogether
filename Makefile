@@ -18,7 +18,7 @@ help:
 	@echo "Root Editorial - Development Commands"
 	@echo ""
 	@echo "Getting Started:"
-	@echo "  make up          - Start all services (Postgres, Restate, API, Web App)"
+	@echo "  make up          - Start all services (Postgres, API, Web App, MinIO)"
 	@echo "  make up-full     - Start all services including Next.js"
 	@echo "  make down        - Stop all services"
 	@echo "  make restart        - Restart all services (down + up, picks up config changes)"
@@ -55,7 +55,7 @@ help:
 # Service Management
 # ========================================
 
-# Start all core services (Postgres, Restate, API, Web App)
+# Start all core services (Postgres, API, Web App, MinIO)
 up:
 	docker compose up -d
 

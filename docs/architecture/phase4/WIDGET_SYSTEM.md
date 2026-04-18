@@ -1,5 +1,12 @@
 # Widget System
 
+> **Pre-migration design doc.** Written when the plan routed all backend
+> work through Restate. Restate was removed on 2026-03-17 (see
+> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> "Restate handlers" correspond to Axum HTTP handlers in
+> `src/api/routes/widgets.rs` in the current codebase. Architectural
+> intent is preserved.
+
 ## Overview
 
 Widgets are non-post content elements placed in broadsheet edition rows. They support decorative and informational content like section headers, weather forecasts, and hotline/resource bars.

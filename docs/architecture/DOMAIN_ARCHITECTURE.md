@@ -1,39 +1,52 @@
-# Domain Architecture - Restate Workflows & Activities
+# Domain Architecture — Activities, Models, and HTTP Handlers
 
 ## Overview
 
-Each domain follows a layered architecture built on **Restate** for durable workflow execution (Restate SDK 0.4.0).
+Each domain is self-contained and follows a layered architecture:
+**Models** (SQL only) → **Activities** (business logic) → **HTTP
+handlers** (thin wrappers that expose activities over the Axum API).
+
+> **History:** The project briefly used Restate SDK 0.4.0 for durable
+> workflow execution. Restate was removed on 2026-03-17 — our
+> workloads are short request/response and didn't justify the
+> runtime overhead. See `ARCHITECTURE_DECISIONS.md` Decision 4.
 
 ## Directory Structure
 
 ```
 packages/server/src/domains/{domain}/
-├── models/       # SQL models with database queries (sqlx)
-├── data/         # GraphQL-style data types (Serialize/Deserialize)
-├── activities/   # Pure async functions (business logic + IO)
-├── restate/      # Restate service/workflow/virtual object definitions
-│   ├── services/         # Stateless request handlers
-│   ├── workflows/        # Durable multi-step orchestrations
-│   └── virtual_objects/  # Keyed stateful objects
-└── mod.rs        # Domain module exports
+├── models/     # SQL queries + row structs (always present)
+├── data/       # Shared data types (if the domain has an API surface)
+├── activities/ # Pure async business-logic functions
+├── loader.rs   # (optional) DataLoader for N+1 avoidance
+└── mod.rs      # Domain module exports
+
+packages/server/src/api/routes/{domain}.rs
+  # HTTP handlers for the domain. Request/response types + thin
+  # handler fns that delegate to activities.
 ```
 
-Not every domain has all layers. Simpler domains may only have `models/` and `restate/services/`.
+HTTP routes live **outside** the domain, in `src/api/routes/`. Routes
+are a cross-cutting concern (authorization, path shape, serialization)
+and keeping them separate lets the same activity be called from
+multiple handlers or from tests.
 
 ## Layer Responsibilities
 
 ### 1. Models (`models/`)
 
-**Purpose**: SQL persistence layer - database queries ONLY
+**Purpose**: SQL persistence — database queries *only*.
 
 **Rules**:
-- ALL SQL queries must be in this directory
-- NO queries outside models/
-- NO business logic
-- Use `sqlx::FromRow` for SQL mapping
-- Always use `sqlx::query_as::<_, Self>()` (never the `query_as!` macro)
+- ALL SQL queries live in this directory.
+- No queries outside `models/`.
+- No business logic (auth checks, branching on state, etc.).
+- Use `sqlx::FromRow` for row mapping.
+- Always use `sqlx::query_as::<_, Self>()` — never the `query_as!`
+  macro.
 
 **Example** (from `organization/models/organization.rs`):
+
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Organization {
@@ -58,9 +71,15 @@ impl Organization {
         .map_err(Into::into)
     }
 
-    pub async fn create(name: &str, description: Option<&str>, submitter_type: &str, pool: &PgPool) -> Result<Self> {
+    pub async fn create(
+        name: &str,
+        description: Option<&str>,
+        submitter_type: &str,
+        pool: &PgPool,
+    ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
-            "INSERT INTO organizations (name, description, submitter_type, status) VALUES ($1, $2, $3, 'pending_review') RETURNING *",
+            "INSERT INTO organizations (name, description, submitter_type, status)
+             VALUES ($1, $2, $3, 'pending_review') RETURNING *",
         )
         .bind(name)
         .bind(description)
@@ -74,220 +93,167 @@ impl Organization {
 
 ### 2. Data (`data/`)
 
-**Purpose**: Serializable data types for API responses
+**Purpose**: Serializable shared types used by multiple places in the
+domain — typically the `ExtractedX` input types that feed
+`create_extracted_*` activities, or request/response DTOs shared
+across handlers.
 
 **Rules**:
-- Implement `Serialize + Deserialize`
-- Convert from models via `From<Model>` trait
-- String IDs (not Uuid) for API compatibility
-- Used by Restate services to return structured data
-
-**Example**:
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostData {
-    pub id: String,
-    pub title: String,
-    pub description: String,
-    pub status: String,
-    pub source_url: Option<String>,
-}
-
-impl From<Post> for PostData {
-    fn from(post: Post) -> Self {
-        Self {
-            id: post.id.to_string(),
-            title: post.title,
-            description: post.description,
-            status: post.status,
-            source_url: post.source_url,
-        }
-    }
-}
-```
+- Implement `Serialize + Deserialize`.
+- Convert from models via `From<Model>` where useful.
 
 ### 3. Activities (`activities/`)
 
-**Purpose**: Pure async functions that contain business logic and IO
+**Purpose**: Business logic. Pure async functions taking
+`&ServerDeps` explicitly.
 
 **Rules**:
-- Take `&ServerDeps` explicitly as a parameter
-- Return simple data types (not domain events)
-- Can call models for database access
-- Can call external APIs (LLM, scraping, etc.)
-- Use `deps.memo()` for caching expensive operations
-- Stateless - no internal state
+- Take `&ServerDeps` as a parameter — never hold it as state.
+- Return plain data types (`Result<Post>`, `Result<Uuid>`, etc.).
+- Can call models for database access.
+- Can call external services via `deps.*` (LLM, Twilio, storage).
+- Use `deps.memo()` for caching expensive LLM calls.
+- Stateless — no fields, no `&mut self`. Just `pub async fn`.
 
-**Example** (from `curator/activities/brief_extraction.rs`):
+**Example**:
+
 ```rust
-pub async fn extract_briefs_for_org(
-    org_name: &str,
-    pages: &[CachedPage],
+// domains/posts/activities/core.rs
+pub async fn admin_create_post(
+    title: String,
+    body_raw: String,
+    post_type: String,
+    member_id: Uuid,
     deps: &ServerDeps,
-) -> Result<Vec<PageBriefExtraction>> {
-    let mut briefs = Vec::new();
-    for page in pages {
-        let brief = deps.ai.complete(GPT_5_MINI, &format_prompt(org_name, page)).await?;
-        briefs.push(brief);
-    }
-    Ok(briefs)
+) -> Result<Post> {
+    let post = Post::create(
+        CreatePost::builder()
+            .title(title)
+            .body_raw(body_raw)
+            .status("draft".to_string())
+            .submission_type(Some("admin".to_string()))
+            .submitted_by_id(Some(member_id))
+            .post_type(Some(post_type))
+            .build(),
+        &deps.db_pool,
+    )
+    .await?;
+    Ok(post)
 }
 ```
 
-### 4. Restate (`restate/`)
+### 4. HTTP Handlers (`src/api/routes/{domain}.rs`)
 
-**Purpose**: Durable execution layer - service definitions, workflows, and virtual objects
+**Purpose**: Expose activities over HTTP. Handle auth, request
+parsing, response serialization, and URL routing.
 
-Restate provides three handler types:
+**Rules**:
+- Handlers are **thin** — parse input, call an activity, serialize
+  output.
+- Use auth extractors (`AdminUser`, `AuthenticatedUser`,
+  `OptionalUser`) for authorization.
+- Return `ApiResult<Json<T>>`. `ApiError` handles the error shape.
+- No business logic in handlers — delegate to activities.
 
-#### Services (`restate/services/`)
-Stateless request handlers. Most domains have these.
+**Example**:
 
 ```rust
-#[restate_sdk::service]
-pub trait PostsService {
-    async fn list_posts(req: ListPostsRequest) -> Result<PostsResponse, HandlerError>;
-    async fn approve_post(req: ApprovePostRequest) -> Result<PostResponse, HandlerError>;
+// src/api/routes/posts.rs
+#[derive(Debug, Deserialize)]
+pub struct AdminCreatePostRequest {
+    pub title: String,
+    pub body_raw: String,
+    pub post_type: String,
+}
+
+async fn admin_create(
+    State(state): State<AppState>,
+    user: AdminUser,
+    Json(req): Json<AdminCreatePostRequest>,
+) -> ApiResult<Json<PostResult>> {
+    let post = activities::admin_create_post(
+        req.title,
+        req.body_raw,
+        req.post_type,
+        user.0.member_id.into_uuid(),
+        &state.deps,
+    )
+    .await?;
+    Ok(Json(PostResult::from(post)))
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/Posts/admin_create", post(admin_create))
+        // ... other handlers
 }
 ```
 
-#### Workflows (`restate/workflows/`)
-Durable multi-step orchestrations that survive process restarts.
+### URL Conventions
 
-```rust
-#[restate_sdk::workflow]
-#[name = "CurateOrgWorkflow"]
-pub trait CurateOrgWorkflow {
-    async fn run(req: CurateOrgRequest) -> Result<CurateOrgResult, HandlerError>;
-    #[shared]
-    async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
-}
-```
-
-#### Virtual Objects (`restate/virtual_objects/`)
-Keyed stateful objects with concurrency guarantees per key.
-
-```rust
-#[restate_sdk::object]
-pub trait PostObject {
-    async fn get(req: EmptyRequest) -> Result<PostResponse, HandlerError>;
-    async fn update(req: UpdatePostRequest) -> Result<PostResponse, HandlerError>;
-}
-```
-
-## Workflow Implementation Pattern
-
-All workflows follow the same structure:
-
-```rust
-// 1. Request/Response types with Restate serialization
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CurateOrgRequest {
-    pub organization_id: Uuid,
-}
-impl_restate_serde!(CurateOrgRequest);
-
-// 2. Trait definition (no &self or ctx in signature)
-#[restate_sdk::workflow]
-pub trait CurateOrgWorkflow {
-    async fn run(req: CurateOrgRequest) -> Result<CurateOrgResult, HandlerError>;
-}
-
-// 3. Implementation struct with Arc<ServerDeps>
-pub struct CurateOrgWorkflowImpl {
-    deps: Arc<ServerDeps>,
-}
-
-impl CurateOrgWorkflowImpl {
-    pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
-        Self { deps }
-    }
-}
-
-// 4. Implementation adds &self and ctx parameters
-impl CurateOrgWorkflow for CurateOrgWorkflowImpl {
-    async fn run(
-        &self,
-        ctx: WorkflowContext<'_>,
-        req: CurateOrgRequest,
-    ) -> Result<CurateOrgResult, HandlerError> {
-        // Use ctx.set() for status tracking
-        ctx.set("status", "Loading organization...".to_string());
-
-        // Call activities with &self.deps
-        let briefs = extract_briefs_for_org(&org.name, &pages, &self.deps)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        // Return result directly (no events)
-        Ok(CurateOrgResult { ... })
-    }
-}
-```
+- `/{Service}/{action}` — collection-level actions. e.g. `POST
+  /Posts/list_posts`, `POST /Posts/admin_create`.
+- `/{Object}/{id}/{action}` — instance-level actions. e.g. `POST
+  /Post/{id}/approve`.
 
 ## Data Flow
 
-### Write Operations (via Restate)
+### Writes
 
 ```
-1. Next.js API Route / Server Action
-   ↓ HTTP
-2. WorkflowClient (HTTP to Restate runtime on port 9070)
-   ↓
-3. Restate Runtime (durable execution proxy)
-   ↓ HTTP (port 9080)
-4. Service/Workflow handler
-   ↓
-5. Activities (business logic + IO)
-   ↓
-6. Models (database queries)
-   ↓
-7. Return result to caller
+1. Next.js component dispatches a GraphQL mutation.
+     ↓
+2. GraphQL resolver (packages/shared/graphql/resolvers/) translates
+   the mutation into an HTTP call via ctx.server.callService(...).
+     ↓ HTTP/JSON
+3. Axum handler in src/api/routes/{domain}.rs parses the request,
+   runs the auth extractor, calls into the domain's activity.
+     ↓
+4. Activity runs business logic, calls model methods for persistence,
+   returns a plain data type.
+     ↓
+5. Model executes sqlx queries against PostgreSQL.
+     ↓
+6. Handler serializes the activity's result and returns JSON.
 ```
 
-### Read Operations
+### Reads
 
-```
-1. Next.js API Route / Server Action
-   ↓ HTTP
-2. Restate Service handler
-   ↓
-3. Model.find_by_*()
-   ↓
-4. Return data type
-```
+Same flow, often without the activity layer — simple reads can go
+handler → model directly when there's no meaningful logic to put in
+an activity.
 
 ## Registration
 
-All Restate handlers are registered in `src/bin/server.rs`:
+All domain routers are mounted in the root router. See
+`src/bin/server.rs` (or `src/lib.rs`):
 
 ```rust
-let endpoint = Endpoint::builder()
-    // Auth domain
-    .bind(AuthServiceImpl::with_deps(server_deps.clone()).serve())
-    // Curator domain
-    .bind(CurateOrgWorkflowImpl::with_deps(server_deps.clone()).serve())
-    .bind(RefineProposalWorkflowImpl::with_deps(server_deps.clone()).serve())
-    // Posts domain
-    .bind(PostObjectImpl::with_deps(server_deps.clone()).serve())
-    .bind(PostsServiceImpl::with_deps(server_deps.clone()).serve())
+let app = Router::new()
+    .nest("/", crate::api::routes::auth::router())
+    .nest("/", crate::api::routes::posts::router())
+    .nest("/", crate::api::routes::editions::router())
+    .nest("/", crate::api::routes::widgets::router())
     // ... all other domains
-    .build();
+    .with_state(AppState { deps: server_deps });
 ```
 
 ## Summary
 
-| Layer        | Responsibility              | Can Do                            | Cannot Do                |
-|--------------|-----------------------------|-----------------------------------|--------------------------|
-| `models`     | Database persistence        | SQL queries, FromRow              | Business logic, IO       |
-| `data`       | API data types              | Serialization, From<Model>        | SQL queries, IO          |
-| `activities` | Business logic              | IO, LLM calls, model queries      | Hold state               |
-| `restate`    | Durable execution           | Orchestrate activities, durability | Direct SQL, business logic |
+| Layer        | Responsibility         | Can Do                          | Cannot Do                 |
+|--------------|------------------------|---------------------------------|---------------------------|
+| `models`     | Database persistence    | SQL queries, FromRow            | Business logic, IO beyond SQL |
+| `data`       | Shared DTOs             | Serialization, From<Model>      | SQL queries               |
+| `activities` | Business logic          | Call models, external IO, auth  | Hold state                |
+| `api/routes` | HTTP surface + auth     | Parse requests, call activities | Business logic, direct SQL |
 
 ## Anti-Patterns to Avoid
 
-- SQL queries outside `models/`
-- Business logic in Restate handlers (keep them thin, delegate to activities)
-- Using `sqlx::query_as!` macro (always use the function version)
-- Fat service handlers (should orchestrate activities, not do work directly)
-- Holding mutable state in service/workflow impls (use `Arc<ServerDeps>` for shared deps)
+- SQL queries outside `models/`.
+- Business logic in HTTP handlers — keep them thin, delegate to
+  activities.
+- Using the `sqlx::query_as!` macro — always use the function version
+  (`sqlx::query_as::<_, Self>(...)`). Enforced by a pre-commit hook.
+- Fat handlers that inline what should be an activity.
+- Activities that hold `ServerDeps` in a struct field instead of
+  taking it as a parameter.

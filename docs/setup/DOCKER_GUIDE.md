@@ -44,8 +44,8 @@ docker compose up -d
 
 This starts:
 - **PostgreSQL** (port 5432) - Database with pgvector extension
-- **Restate Runtime** (port 9070 admin, 8180 ingress) - Workflow orchestration
-- **Rust Server** (port 9080) - Restate workflow server
+- **Rust Server** (port 9080) - Axum HTTP/JSON API + SSE streams
+- **MinIO** (ports 9000 API / 9001 console) - S3-compatible media storage
 
 ### 3. Run Migrations
 
@@ -55,10 +55,11 @@ make migrate
 
 ### 4. Access the Application
 
-- **Restate Admin**: http://localhost:9070
 - **CMS Admin App**: http://localhost:3000 (run separately with `yarn dev`)
 - **Public Web App**: http://localhost:3001 (run separately with `yarn dev`)
+- **Rust API**: http://localhost:9080
 - **Health Check**: http://localhost:9080/health
+- **MinIO Console**: http://localhost:9001
 
 ## Common Commands
 
@@ -150,7 +151,8 @@ Check if ports are already in use:
 # Check port usage
 lsof -i :5432  # PostgreSQL
 lsof -i :9080  # Rust Server
-lsof -i :9070  # Restate Admin
+lsof -i :9000  # MinIO API
+lsof -i :9001  # MinIO console
 ```
 
 ### Database Connection Issues
@@ -239,20 +241,21 @@ docker compose -f docker-compose.prod.yml up -d
          │                        │
          └────────┬───────────────┘
                   ▼
-         ┌─────────────────┐
-         │ Restate Runtime  │
-         │  Port 9070/8180  │
-         └────────┬────────┘
-                  ▼
-┌─────────────────┐      ┌─────────────┐
-│   Rust Server   │─────▶│  PostgreSQL  │
-│  (Restate svc)  │      │  (pgvector)  │
-│   Port 9080     │      │  Port 5432   │
-└─────────────────┘      └─────────────┘
-         │
-         │ (External APIs)
-         ├─▶ OpenAI (LLM)
-         └─▶ Twilio (SMS auth)
+         ┌───────────────────┐
+         │  GraphQL resolvers │
+         │  (in Next.js API)  │
+         └─────────┬──────────┘
+                   ▼
+         ┌────────────────────┐      ┌─────────────┐
+         │  Rust Axum Server   │─────▶│  PostgreSQL │
+         │  HTTP/JSON + SSE    │      │  (pgvector) │
+         │  Port 9080          │      │  Port 5432  │
+         └──────────┬──────────┘      └─────────────┘
+                    │
+                    │ (External APIs)
+                    ├─▶ OpenAI (LLM)
+                    ├─▶ Twilio (SMS auth)
+                    └─▶ MinIO / S3 (media)
 ```
 
 ## Data Persistence

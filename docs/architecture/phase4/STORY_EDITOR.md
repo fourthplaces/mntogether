@@ -1,5 +1,14 @@
 # Phase 4.1: Markdown Story Editor
 
+> **Pre-migration design doc.** Written when the plan routed all backend
+> work through Restate. Restate was removed on 2026-03-17 (see
+> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> "Restate handlers / services / virtual objects" and
+> `domains/*/restate/` directories correspond to Axum HTTP handlers in
+> `src/api/routes/{domain}.rs` in the current codebase. The editor
+> itself (Plate.js-based WYSIWYG) has since been implemented — the
+> prose-path details here are historical context.
+
 **Status:** Plan
 **Priority:** 1 of 4 (highest — unblocks all other Phase 4 work)
 **Depends on:** Nothing (Phases 1–3 complete)

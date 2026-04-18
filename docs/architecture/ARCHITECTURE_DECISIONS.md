@@ -44,20 +44,42 @@ RSS feeds per county serve as a zero-PII complement — readers who prefer feed 
 
 ---
 
-## Decision 4: All Backend Operations Route Through Restate
+## Decision 4: All Backend Operations Are Plain Axum HTTP Handlers
 
-Every backend operation — CRUD, queries, workflows — routes through Restate service handlers. The architecture is `Next.js → GraphQL → Restate Ingress → Rust Server → PostgreSQL`. No exceptions.
+**Superseded the original Restate decision (2026-03-17).** Every backend
+operation — CRUD, queries, long-running work — is a plain Axum HTTP
+handler. The architecture is
+`Next.js → GraphQL resolvers → Axum HTTP (port 9080) → PostgreSQL`.
+No workflow runtime, no service mesh.
 
-- **CRUD features** (media library, post create/update, dashboard queries) use Restate `#[service]` handlers. They don't need durable execution, but the consistent routing means one mental model, one call pattern in resolvers, and one place to add observability.
-- **Workflows** (newsletter send, edition generation, Signal integration) use Restate `#[workflow]` handlers with `ctx.run()` for durability guarantees.
-- **Keyed operations** (per-post writes) use Restate virtual objects for write serialization.
-- **Pattern:** GraphQL resolvers always call `ctx.restate.callService(...)` or `ctx.restate.callObject(...)`. Activities are pure functions taking `&ServerDeps`. SQL lives in models.
+- **CRUD features** (media library, post create/update, dashboard
+  queries) are thin `async fn` handlers in `packages/server/src/api/routes/`
+  that delegate to activity functions.
+- **Long-running work** (newsletter send, edition generation, Signal
+  integration): for dev today, synchronous calls inside the same
+  handler; for production, revisit with a job queue when we have
+  concrete durability needs. Don't pay for Restate-shaped complexity
+  before there's a workload that demands it.
+- **Keyed operations** (per-post writes): use row-level locks / `SELECT
+  ... FOR UPDATE` when concurrency is real; otherwise just write.
+- **Pattern:** GraphQL resolvers call `ctx.server.callService(...)` in
+  `packages/shared/graphql/server-client.ts`, which issues a POST to
+  the Rust server. Activities are pure functions taking `&ServerDeps`.
+  SQL lives in models.
+
+The original decision pushed everything through Restate for "one
+mental model, one call pattern." In practice the durability benefits
+weren't being used — our workloads are short request/response. The
+SDK overhead, dual-serialization (`impl_restate_serde!` macro), and
+extra runtime process weren't paying for themselves. Removed in the
+pivot (see `ROOT_EDITORIAL_PIVOT.md`).
 
 ---
 
 ## Decision 5: Root Signal Integration via Webhook
 
-Root Signal pushes content into Root Editorial via a simple webhook endpoint — not a shared Restate deployment or service mesh.
+Root Signal pushes content into Root Editorial via a simple webhook
+endpoint — not a shared deployment or service mesh.
 
 - **Endpoint:** One thin receiver validates a shared secret and inserts a post
 - **Data:** Posts arrive as `submission_type='signal', status='pending_approval'`

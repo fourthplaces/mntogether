@@ -4,34 +4,42 @@
 
 **We are building a CMS for community journalism.**
 
-Root Editorial is an open CMS that helps non-technical editors curate and publish community-focused content. The Rust server provides durable workflows for content lifecycle management, editorial tooling, and AI-assisted content processing.
+Root Editorial is an open CMS that helps non-technical editors curate
+and publish community-focused content. The Rust server provides HTTP
+endpoints for content lifecycle management, editorial tooling, and
+AI-assisted content processing.
 
 ---
 
 ## Architecture
 
-The server is a single Rust crate (`packages/server/`) using **Restate SDK 0.4.0** for durable workflow execution.
+The server is a single Rust crate (`packages/server/`) built with
+**Axum** as a plain HTTP/JSON service.
 
 ```
 Next.js Frontend (admin-app :3000, web-app :3001)
-    ↓ HTTP / GraphQL
-Restate Runtime (port 8180 ingress, 9070 admin)
-    ↓ HTTP
-Rust Workflow Server (port 9080)
-    ├── Services   — stateless request handlers
-    ├── Workflows  — durable multi-step pipelines
-    └── Objects    — keyed stateful entities
+    ↓ HTTPS + GraphQL
+GraphQL resolvers (in-process in Next.js API routes)
+    ↓ HTTP/JSON
+Rust Axum Server (port 9080)
+    ├── src/api/routes/   — one file per service (posts, editions, widgets, …)
+    ├── src/domains/      — business domains, each with models/ + activities/
+    └── src/kernel/       — ServerDeps (db pool, AI client, storage adapter)
     ↓
 PostgreSQL + pgvector
 ```
 
 ### Key Components
 
-- **Business domains** in `src/domains/` (auth, member, posts, organization, notes, tags, etc.)
+- **Business domains** in `src/domains/` (auth, member, posts,
+  editions, organization, notes, tags, widgets, media, …).
+- **HTTP routes** in `src/api/routes/{domain}.rs` — thin `async fn`
+  handlers that delegate to activity functions.
+- **Activities** — pure async functions with business logic, take
+  `&ServerDeps`.
+- **Models** — SQL persistence with `sqlx::query_as::<_, Self>()`.
 - **ServerDeps** — central dependency container (`Arc<ServerDeps>`)
-- **Activities** — pure async functions with business logic
-- **Models** — SQL persistence with `sqlx::query_as::<_, Self>()`
-- **impl_restate_serde!** — macro bridging serde and Restate SDK serialization
+  holding the DB pool, AI client, and storage adapter.
 
 ---
 
@@ -85,13 +93,14 @@ pub struct Source {
 
 | Component         | Technology                |
 |-------------------|--------------------------|
-| Runtime           | Restate SDK 0.4.0        |
-| Database          | PostgreSQL + pgvector     |
+| HTTP              | Axum 0.7 + Tokio         |
+| Database          | PostgreSQL + pgvector + sqlx |
 | LLM               | OpenAI (GPT)             |
-| Auth              | Twilio Verify (phone/email OTP) |
+| Auth              | Twilio Verify (phone/email OTP) + JWT |
+| Storage           | S3-compatible (MinIO in dev, AWS S3 in prod) |
 | Frontend          | Next.js (App Router)     |
 | Vector search     | pgvector (cosine similarity) |
-| GraphQL           | Shared schema (packages/shared) |
+| GraphQL           | Shared schema + resolvers (packages/shared) |
 
 ---
 

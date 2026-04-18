@@ -83,30 +83,31 @@ With `TEST_IDENTIFIER_ENABLED=true`:
          │                        │
          └────────┬───────────────┘
                   ▼
-         ┌─────────────────┐
-         │ Restate Runtime  │
-         │  Port 9070/8180  │
-         └────────┬────────┘
-                  ▼
-┌─────────────────┐      ┌─────────────┐
-│   Rust Server   │─────▶│  PostgreSQL  │
-│  (Restate svc)  │      │  (pgvector)  │
-│   Port 9080     │      │  Port 5432   │
-└─────────────────┘      └─────────────┘
-         │
-         │ (External APIs)
-         ├─▶ OpenAI (LLM)
-         └─▶ Twilio (SMS auth)
+         ┌───────────────────┐
+         │  GraphQL resolvers │
+         │  (Apollo, in-proc) │
+         └─────────┬──────────┘
+                   ▼
+         ┌────────────────────┐      ┌─────────────┐
+         │  Rust Axum Server   │─────▶│  PostgreSQL │
+         │  HTTP/JSON + SSE    │      │  (pgvector) │
+         │  Port 9080          │      │  Port 5432  │
+         └──────────┬──────────┘      └─────────────┘
+                    │
+                    │ (External APIs)
+                    ├─▶ OpenAI (LLM)
+                    ├─▶ Twilio (SMS auth)
+                    └─▶ MinIO / S3 (media)
 ```
 
 ## Workspace Packages
 
 ```
 packages/
-├── server/          # Rust — Restate workflow server (backend)
+├── server/          # Rust — Axum HTTP server (backend)
 ├── admin-app/       # TypeScript — Next.js CMS admin panel
 ├── web-app/         # TypeScript — Next.js public web app
-├── shared/          # TypeScript — Shared GraphQL schema and types
+├── shared/          # TypeScript — Shared GraphQL schema + resolvers
 ├── ai-client/       # Rust — LLM client abstraction
 └── twilio-rs/       # Rust — Twilio Verify wrapper
 ```
@@ -115,12 +116,12 @@ packages/
 
 | Component | Technology |
 |-----------|-----------|
-| Backend | Rust + Restate SDK 0.4.0 |
+| Backend | Rust + Axum + sqlx |
 | Database | PostgreSQL + pgvector |
 | LLM | OpenAI |
 | Auth | Twilio Verify (phone/email OTP) + JWT |
 | Frontend | Next.js (App Router) |
-| GraphQL | Shared schema (packages/shared) |
+| GraphQL | Shared schema, resolvers call HTTP endpoints on the Rust server |
 
 ## Documentation
 

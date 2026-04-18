@@ -8,10 +8,10 @@ Root Editorial is a monorepo with a Rust backend and TypeScript frontends. The m
 
 ```
 packages/
-├── server/          # Rust — Restate workflow server (the backend)
+├── server/          # Rust — Axum HTTP/JSON API server (the backend)
 ├── admin-app/       # TypeScript — Next.js CMS admin panel
 ├── web-app/         # TypeScript — Next.js public web app
-├── shared/          # TypeScript — Shared GraphQL schema and types
+├── shared/          # TypeScript — Shared GraphQL schema + resolvers
 ├── ai-client/       # Rust — LLM client abstraction (OpenAI, OpenRouter)
 └── twilio-rs/       # Rust — Twilio Verify wrapper
 ```
@@ -26,8 +26,9 @@ The core application. Contains all business logic organized into domains.
 - **Library**: `src/lib.rs` (exported as `server_core`)
 - **Domains**: `src/domains/` (business domains)
 - **Infrastructure**: `src/kernel/` (ServerDeps, AI clients)
-- **Shared types**: `src/common/` (entity IDs, pagination, restate_serde)
-- **Migrations**: `migrations/` (000001–000170+)
+- **HTTP API**: `src/api/routes/` (one file per service: posts.rs, editions.rs, widgets.rs, etc.)
+- **Shared types**: `src/common/` (entity IDs, pagination, auth extractors)
+- **Migrations**: `migrations/` (231+ files)
 
 ### `ai-client` (library crate)
 
@@ -66,23 +67,30 @@ Shared TypeScript code between admin-app and web-app.
 
 ## Key Domains (server)
 
-All domains live in `packages/server/src/domains/`:
+All domains live in `packages/server/src/domains/`. Each domain
+contains `models/` (SQL queries), `activities/` (business logic
+functions taking `&ServerDeps`), and optional `data/` types. HTTP
+handlers live in `src/api/routes/{domain}.rs` and delegate to the
+domain's activities.
 
-| Domain | Purpose | Has Restate | Has Activities |
-|--------|---------|-------------|----------------|
-| `auth` | Phone/email OTP (Twilio Verify) | Services | Yes |
-| `contacts` | Contact info management | No | No |
-| `jobs` | Background job management | Services | No |
-| `locations` | Geocoding and geo data | No | No |
-| `member` | User profiles, registration | Services, Objects, Workflows | Yes |
-| `memo` | LLM response caching | No | No |
-| `notes` | Editorial notes | Services | Yes |
-| `organization` | Org management/approval | Services, Workflows | No |
-| `posts` | Post/listing lifecycle | Services, Objects, Workflows | Yes |
-| `providers` | Service provider profiles | Services, Objects | Yes |
-| `schedules` | Calendar parsing (RFC 5545) | No | No |
-| `source` | Content sources | Services, Objects, Workflows | Yes |
-| `tag` | Tagging/categorization | Services | No |
+| Domain | Purpose |
+|--------|---------|
+| `auth` | Phone/email OTP (Twilio Verify) |
+| `contacts` | Contact info management |
+| `editions` | Weekly broadsheet editions + layout engine |
+| `jobs` | Background job management |
+| `locations` | Geocoding and geo data |
+| `media` | Presigned upload + media library |
+| `member` | User profiles, registration |
+| `memo` | LLM response caching |
+| `notes` | Editorial notes |
+| `organization` | Org management/approval |
+| `posts` | Post/listing lifecycle |
+| `providers` | Service provider profiles |
+| `schedules` | Calendar parsing (RFC 5545) |
+| `source` | Content sources |
+| `tag` | Tagging/categorization |
+| `widgets` | Widget authoring + layout |
 
 > **Note**: Additional domains may exist in the codebase from the pre-pivot era (crawling, curator, extraction, etc.). These are legacy code from Root Signal. See [ROOT_EDITORIAL_PIVOT.md](ROOT_EDITORIAL_PIVOT.md).
 
@@ -92,15 +100,15 @@ All domains live in `packages/server/src/domains/`:
 server (main crate)
 ├── ai-client (LLM abstraction)
 ├── twilio-rs (phone auth)
-└── shared (via GraphQL API, not Rust dep)
+└── shared (via HTTP API, not a Rust dep)
 
 admin-app (Next.js)
-├── shared (GraphQL types)
-└── server (via HTTP → Restate runtime)
+├── shared (GraphQL schema + resolvers)
+└── server (resolvers POST to http://server:9080)
 
 web-app (Next.js)
-├── shared (GraphQL types)
-└── server (via HTTP → Restate runtime)
+├── shared (GraphQL schema + resolvers)
+└── server (resolvers POST to http://server:9080)
 ```
 
 ## Build & Run
@@ -117,5 +125,5 @@ cd packages/admin-app && yarn dev    # Port 3000
 cd packages/web-app && yarn dev      # Port 3001
 
 # Infrastructure
-docker compose up -d postgres restate
+docker compose up -d postgres minio
 ```

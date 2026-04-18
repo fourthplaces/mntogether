@@ -1,5 +1,12 @@
 # Broadsheet Layout Editor
 
+> **Pre-migration design doc.** Written when the plan routed all backend
+> work through Restate. Restate was removed on 2026-03-17 (see
+> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> "Restate handlers / services" and `domains/*/restate/` directories
+> correspond to Axum HTTP handlers in `src/api/routes/{domain}.rs` in
+> the current codebase. Architectural intent is preserved.
+
 **Status:** Implemented | **Priority:** Chunk 3 of Phase 4.2-4.3
 
 ## Overview

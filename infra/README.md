@@ -28,7 +28,7 @@ Pulumi-based infrastructure as code for deploying to AWS.
 │                       ECS Fargate                             │
 │  ┌──────────────────────────────┐                            │
 │  │  Server (Rust)               │                            │
-│  │  - Restate endpoint (h2c)    │                            │
+│  │  - Axum HTTP/JSON (port 9080) │                            │
 │  │  - Auto-scaling              │                            │
 │  └──────────────┬───────────────┘                            │
 └─────────────────┼────────────────────────────────────────────┘

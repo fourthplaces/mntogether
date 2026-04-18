@@ -1,5 +1,12 @@
 # Phase 4.0: CMS Experience (Decap-Inspired)
 
+> **Pre-migration design doc.** Written when the plan routed all backend
+> work through Restate. Restate was removed on 2026-03-17 (see
+> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> "Restate handlers / services" and `domains/*/restate/` directories
+> correspond to Axum HTTP handlers in `src/api/routes/{domain}.rs` in
+> the current codebase. Architectural intent is preserved.
+
 **Status:** Plan
 **Priority:** 0 (design vision — informs all Phase 4 implementation)
 **Depends on:** Phases 1–3 complete

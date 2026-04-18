@@ -5,14 +5,18 @@ Guide for integrating the Next.js frontend apps with the Rust backend via GraphQ
 ## Architecture Overview
 
 ```
-┌──────────────────┐     ┌──────────────────┐
-│ Admin App / Web  │     │  Restate Runtime  │     ┌──────────────────┐
-│  (Next.js)       │────▶│  (Port 8180)      │────▶│  Rust Server     │
-│  Port 3000/3001  │     │                   │     │  (Port 9080)     │
-└──────────────────┘     └──────────────────┘     └──────────────────┘
+┌──────────────────┐     ┌───────────────────┐     ┌──────────────────┐
+│ Admin App / Web  │     │ GraphQL resolvers │     │  Rust Server     │
+│  (Next.js)       │────▶│ (in Next.js API)  │────▶│  (Axum, :9080)   │
+│  Port 3000/3001  │     │                   │     │                  │
+└──────────────────┘     └───────────────────┘     └──────────────────┘
 ```
 
-The frontend apps communicate with the backend through GraphQL. The `shared` package (`packages/shared/`) defines the GraphQL schema types used by both admin-app and web-app.
+The frontend apps communicate with the backend through GraphQL. The
+`shared` package (`packages/shared/`) defines the GraphQL schema types
+and resolvers used by both admin-app and web-app. Resolvers run
+in-process in the Next.js API route and translate GraphQL fields into
+HTTP calls against the Rust server's JSON endpoints.
 
 ## CORS Configuration
 
@@ -151,7 +155,7 @@ ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 **Solutions:**
 1. Check backend is running: `curl http://localhost:9080/health`
 2. Check frontend API URL config
-3. Verify Restate runtime is running: `curl http://localhost:9070`
+3. Verify the Rust server is running: `curl http://localhost:9080/health`
 
 ## Best Practices
 

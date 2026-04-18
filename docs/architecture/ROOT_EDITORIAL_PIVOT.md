@@ -422,7 +422,7 @@ Built full edition/broadsheet system: 8 DB tables, layout engine, 16 HTTP handle
 |------|-------|
 | GraphQL schema (all types, queries, mutations) | `packages/shared/graphql/schema.ts` |
 | GraphQL resolvers | `packages/shared/graphql/resolvers/` |
-| Restate client (GraphQL → Restate bridge) | `packages/shared/graphql/restate-client.ts` |
+| Server client (GraphQL → Rust HTTP bridge) | `packages/shared/graphql/server-client.ts` |
 | Rust post model | `packages/server/src/domains/posts/models/post.rs` |
 | Rust post types/enums | `packages/server/src/domains/posts/` |
 | Admin app pages | `packages/admin-app/app/admin/(app)/` |

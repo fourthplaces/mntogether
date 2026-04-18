@@ -1,5 +1,12 @@
 # Editorial Workflow Rework — Edition Currency Model
 
+> **Pre-migration design doc.** Written when the plan routed all backend
+> work through Restate. Restate was removed on 2026-03-17 (see
+> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> "Restate handlers / services" and `domains/*/restate/` directories
+> correspond to Axum HTTP handlers in `src/api/routes/{domain}.rs` in
+> the current codebase. Architectural intent is preserved.
+
 > **Status:** Planning
 > **Branch:** `feature/phase4-cms-experience`
 > **Created:** 2026-03-01

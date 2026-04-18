@@ -6,7 +6,7 @@ Complete guide for running Root Editorial with Docker Compose.
 
 The docker-compose setup includes:
 - **PostgreSQL** (pgvector) - Database with vector search support
-- **API Server** (Rust) - Restate workflow server with hot-reload
+- **API Server** (Rust) - Axum HTTP server with cargo-watch hot-reload
 - **Admin App** (Next.js) - CMS admin panel (port 3000)
 - **Web App** (Next.js) - Public-facing site (port 3001)
 
@@ -34,7 +34,7 @@ The docker-compose setup includes:
 4. **Access the services**:
    - Admin App (CMS): http://localhost:3000
    - Web App (Public): http://localhost:3001
-   - Restate API: http://localhost:9080
+   - Rust API: http://localhost:9080
    - PostgreSQL: localhost:5432
 
 ## Required Environment Variables
@@ -251,7 +251,7 @@ Check that `NEXT_PUBLIC_API_URL` is set correctly:
                       ↓
          ┌────────────────────────────────┐
          │  Rust Server (localhost:9080)  │
-         │  Restate Workflows             │
+         │  Axum HTTP + SSE               │
          └────────────┬──────────────────┘
                       │
                       ↓
