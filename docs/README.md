@@ -62,6 +62,10 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 - [API Integration Guide](guides/API_INTEGRATION_GUIDE.md) - Working with the GraphQL API
 - [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
 - [Testing Workflows](guides/TESTING_WORKFLOWS.md) - Restate workflow testing guide
+- [Post ↔ Edition Lifecycle](guides/POST_EDITION_LIFECYCLE.md) - How posts become eligible for editions, multi-edition reuse, and the Root Signal dedup design
+- [Root Signal Ingest Spec](guides/ROOT_SIGNAL_INGEST_SPEC.md) - Post contract Root Signal must honor (draft)
+- [Root Signal Media Ingest](guides/ROOT_SIGNAL_MEDIA_INGEST.md) - Design proposal: fetch + store external images on ingest (not built)
+- [Server-Side Image Processing](guides/SERVER_SIDE_IMAGE_PROCESSING.md) - Design proposal: move resize/recompress to the Rust server (not built)
 
 ### Admin & CMS
 - [Admin Quick Start](admin/ADMIN_QUICK_START.md) - Admin/CMS authentication setup
