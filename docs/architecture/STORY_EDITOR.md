@@ -2,7 +2,7 @@
 
 > **Pre-migration design doc.** Written when the plan routed all backend
 > work through Restate. Restate was removed on 2026-03-17 (see
-> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> `ARCHITECTURE_DECISIONS.md` Decision 4). References below to
 > "Restate handlers / services / virtual objects" and
 > `domains/*/restate/` directories correspond to Axum HTTP handlers in
 > `src/api/routes/{domain}.rs` in the current codebase. The editor
@@ -57,7 +57,7 @@ Posts created via the admin editor get `submission_type = 'admin'` and `status =
 
 ### 5. PostForm is type-aware with field group defaults
 
-> **From [CMS_SYSTEM_SPEC.md](../CMS_SYSTEM_SPEC.md) §5 and §9.2.**
+> **From [CMS_SYSTEM_SPEC.md](CMS_SYSTEM_SPEC.md) §5 and §9.2.**
 
 When the editor selects a post type in the form, different field groups should be open by default. The 6 post types and their default field groups:
 
@@ -80,7 +80,7 @@ Creation goes through the stateless `PostsService` (no existing post key). Conte
 
 ### 7. All operations route through Restate
 
-> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4.**
+> **See [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md), Decision 4.**
 
 `createPost` and `updatePost` route through Restate like everything else. `createPost` goes through the stateless `PostsService` (Decision 6). `updatePost` goes through the keyed `Post` virtual object, which serializes writes per post and matches the existing `edit_approve` / `approve` / `reject` pattern. GraphQL resolvers call `ctx.restate.callService(...)` and `ctx.restate.callObject(...)` — one consistent pattern for all backend operations.
 

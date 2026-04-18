@@ -205,7 +205,7 @@ The original fix used `yarn install --immutable` with `yarn.lock:ro`. This turne
 - `docker-compose.yml`: removed `:ro` from admin-app's `yarn.lock` mount
 - `app/globals.css`: inlined `shadcn/tailwind.css` contents to avoid CSS import resolution issues in Docker
 
-See [Docker Architecture](../architecture/DOCKER_ARCHITECTURE.md) for the full explanation.
+See [Docker Architecture](../setup/DOCKER_ARCHITECTURE.md) for the full explanation.
 
 ## Stats Summary
 

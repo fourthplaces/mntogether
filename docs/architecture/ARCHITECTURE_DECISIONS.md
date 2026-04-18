@@ -40,7 +40,7 @@ When implemented, email delivery uses **Amazon SES** — the same AWS account an
 
 RSS feeds per county serve as a zero-PII complement — readers who prefer feed readers get the same edition content without registering.
 
-> **See also:** [`phase4/EMAIL_NEWSLETTER.md`](phase4/EMAIL_NEWSLETTER.md) — the detailed implementation plan. Its status is **Deferred**, not superseded. The product vision (weekly edition preview emails per county) remains valid; the implementation timing is TBD.
+> **See also:** [`EMAIL_NEWSLETTER.md`](EMAIL_NEWSLETTER.md) — the detailed implementation plan. Its status is **Deferred**, not superseded. The product vision (weekly edition preview emails per county) remains valid; the implementation timing is TBD.
 
 ---
 

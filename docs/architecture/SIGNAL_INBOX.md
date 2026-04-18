@@ -2,7 +2,7 @@
 
 > **Pre-migration design doc.** Written when the plan routed all backend
 > work through Restate. Restate was removed on 2026-03-17 (see
-> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> `ARCHITECTURE_DECISIONS.md` Decision 4). References below to
 > "Restate handlers / services" and `domains/*/restate/` directories
 > correspond to Axum HTTP handlers in `src/api/routes/{domain}.rs` in
 > the current codebase. Architectural intent is preserved.
@@ -49,7 +49,7 @@ The inbox has a fundamentally different UX goal than the posts list. The posts p
 
 ### 6. Signal integration will be via webhook
 
-> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 5.**
+> **See [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md), Decision 5.**
 
 When Root Signal's API is ready, integration will be a simple webhook — not a shared Restate service or service mesh. Signal calls a webhook endpoint on Editorial's backend, which validates a shared secret and inserts a post with `submission_type='signal', status='pending_approval'`. The mock data approach (seeded `signal_items.json`) is correct for building the triage UI now; the real integration swaps the data source without changing the UI.
 
@@ -61,7 +61,7 @@ When Root Signal's API is ready, integration will be a simple webhook — not a 
 
 ### Signal-to-Type Mapping for Mock Data
 
-> **From [CMS_SYSTEM_SPEC.md §10](../CMS_SYSTEM_SPEC.md#10-root-signal-integration).**
+> **From [CMS_SYSTEM_SPEC.md §10](CMS_SYSTEM_SPEC.md#10-root-signal-integration).**
 
 The mock data should reflect the expected mapping from Root Signal categories to post types:
 
@@ -79,7 +79,7 @@ The 10-15 mock items should cover all 6 post types with a realistic distribution
 
 ### Origin Metadata
 
-> **From [CMS_SYSTEM_SPEC.md §10](../CMS_SYSTEM_SPEC.md#10-root-signal-integration).**
+> **From [CMS_SYSTEM_SPEC.md §10](CMS_SYSTEM_SPEC.md#10-root-signal-integration).**
 
 Each signal-originated post can track its Root Signal origin for traceability. The inbox cards should display this when available:
 

@@ -2,7 +2,7 @@
 
 > **Pre-migration design doc.** Written when the plan routed all backend
 > work through Restate. Restate was removed on 2026-03-17 (see
-> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> `ARCHITECTURE_DECISIONS.md` Decision 4). References below to
 > "Restate handlers / services" and `domains/*/restate/` directories
 > correspond to Axum HTTP handlers in `src/api/routes/{domain}.rs` in
 > the current codebase. Architectural intent is preserved.
@@ -21,9 +21,9 @@ Editors need a dashboard that answers: *What is the current edition? How complet
 
 ### Relationship to the Broadsheet Dashboard
 
-[CMS_SYSTEM_SPEC.md §9.1](../CMS_SYSTEM_SPEC.md#91-broadsheet-dashboard-primary-view) describes the full broadsheet dashboard vision: an editable layout preview showing rows, post cards in slots, drag-and-drop reordering, and an unplaced post pool. That is the eventual target — a visual edition editor where the editor can see and manipulate the actual broadsheet layout.
+[CMS_SYSTEM_SPEC.md §9.1](CMS_SYSTEM_SPEC.md#91-broadsheet-dashboard-primary-view) describes the full broadsheet dashboard vision: an editable layout preview showing rows, post cards in slots, drag-and-drop reordering, and an unplaced post pool. That is the eventual target — a visual edition editor where the editor can see and manipulate the actual broadsheet layout.
 
-This document describes the **stats-focused first step**: county-level edition completeness, pending post counts, and quick actions. The broadsheet layout editor is a later evolution that builds on this foundation and the row/slot template system from [CMS_SYSTEM_SPEC.md §7](../CMS_SYSTEM_SPEC.md#7-layout-system).
+This document describes the **stats-focused first step**: county-level edition completeness, pending post counts, and quick actions. The broadsheet layout editor is a later evolution that builds on this foundation and the row/slot template system from [CMS_SYSTEM_SPEC.md §7](CMS_SYSTEM_SPEC.md#7-layout-system).
 
 ### Row Templates and Post Templates
 
@@ -60,7 +60,7 @@ Dashboard stats are edition-centric data. Adding `dashboard_stats` to the existi
 
 ### 5. Dashboard query routes through Restate like everything else
 
-> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4.**
+> **See [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md), Decision 4.**
 
 The dashboard aggregation is a read-only SQL query, but it routes through Restate's `EditionsService` for consistency with the rest of the architecture. All GraphQL resolvers call `ctx.restate.callService(...)` — one pattern, one call path, one place to add observability. The `dashboard_stats` handler delegates to the activity, which runs the SQL query.
 

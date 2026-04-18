@@ -17,51 +17,56 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 ## Documentation Structure
 
 ### Getting Started
+- [Quick Start](setup/QUICK_START.md) - Fast getting started guide
 - [Local Dev Setup](setup/LOCAL_DEV_SETUP.md) - Local development environment and test data
 - [Docker Guide](setup/DOCKER_GUIDE.md) - Docker Compose setup and commands
-- [Quick Start](setup/QUICK_START.md) - Fast getting started guide
 - [Docker Setup](setup/DOCKER_SETUP.md) - Docker and containerization setup
+- [Docker Architecture](setup/DOCKER_ARCHITECTURE.md) - Docker dev environment: volumes, build pipeline, and trade-offs
 - [Deployment](setup/DEPLOYMENT.md) - Production deployment guide
 
-### Architecture
+### Architecture — Core
 - [Root Editorial Pivot](architecture/ROOT_EDITORIAL_PIVOT.md) - The pivot bible: what stays, what's dead, what's next
+- [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate removal, webhook integration)
 - [CMS System Spec](architecture/CMS_SYSTEM_SPEC.md) - Comprehensive CMS and broadsheet spec
-- [Post Type System](architecture/POST_TYPE_SYSTEM.md) - Post types, field groups, and templates
-- [Domain Architecture](architecture/DOMAIN_ARCHITECTURE.md) - Domain-driven design structure
-- [Backend Overview](architecture/backend-overview.md) - Axum HTTP server architecture
+- [CMS Experience](architecture/CMS_EXPERIENCE.md) - Overall CMS UX vision (Decap-inspired)
+- [Backend Overview](architecture/BACKEND_OVERVIEW.md) - Axum HTTP server architecture
+- [Domain Architecture](architecture/DOMAIN_ARCHITECTURE.md) - Models → activities → HTTP handlers structure
 - [Package Structure](architecture/PACKAGE_STRUCTURE.md) - Monorepo organization
 - [Rust Implementation](architecture/RUST_IMPLEMENTATION.md) - Rust backend details
 - [Rust Project Structure](architecture/RUST_PROJECT_STRUCTURE.md) - Rust codebase layout
-- [Database Schema](architecture/DATABASE_SCHEMA.md) - Canonical schema reference (⚠️ stale — covers through migration 171, schema now at 206)
+- [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
+- [Root Signal Spec](architecture/ROOT_SIGNAL_SPEC.md) - Root Signal API contract (draft)
+
+### Architecture — Data & Schema
 - [Data Model](architecture/DATA_MODEL.md) - Core entity relationships
+- [Database Schema](architecture/DATABASE_SCHEMA.md) - Canonical schema reference (⚠️ stale — covers through migration 171, schema now at 231+)
 - [Simplified Schema](architecture/SIMPLIFIED_SCHEMA.md) - Minimal schema philosophy
 - [Tags vs Fields](architecture/TAGS_VS_FIELDS.md) - Data modeling decisions
-- [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate removal, webhook integration)
-- [Root Signal Spec](architecture/ROOT_SIGNAL_SPEC.md) - Root Signal API contract (draft)
-- [Docker Architecture](architecture/DOCKER_ARCHITECTURE.md) - Docker dev environment: volumes, build pipeline, and trade-offs
+- [Post Type System](architecture/POST_TYPE_SYSTEM.md) - Post types, field groups, and templates
+- [Row Templates](architecture/ROW_TEMPLATES.md) - Broadsheet row template definitions
+
+### Architecture — Features & Design Specs
+- [Story Editor](architecture/STORY_EDITOR.md) - Plate.js WYSIWYG editor plan
+- [Broadsheet Layout Editor](architecture/BROADSHEET_LAYOUT_EDITOR.md) - Admin drag-drop edition composer
+- [Edition Cockpit](architecture/EDITION_COCKPIT.md) - Dashboard design
+- [Edition Kanban](architecture/EDITION_KANBAN.md) - Kanban workflow board
+- [Edition Status Model](architecture/EDITION_STATUS_MODEL.md) - Edition lifecycle states
+- [Editorial Workflow Rework](architecture/EDITORIAL_WORKFLOW_REWORK.md) - Workflow orientation
+- [Widget System](architecture/WIDGET_SYSTEM.md) - Widget domain design
+- [Signal Inbox](architecture/SIGNAL_INBOX.md) - Root Signal content triage
+- [Navigation Hierarchy](architecture/NAVIGATION_HIERARCHY.md) - Admin sidebar structure
 - [Design Tokens](architecture/DESIGN_TOKENS.md) - Design system tokens
-- [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
-- [Embedding Features Reference](architecture/EMBEDDING_FEATURES_REFERENCE.md) - Archival: removed AI/embedding features catalog
+
+### Architecture — Deferred / Archival
+- [Email Newsletter](architecture/EMAIL_NEWSLETTER.md) - Newsletter system design (deferred)
 - [Abuse Reporting](architecture/ABUSE_REPORTING.md) - Post reporting feature spec (deferred)
 - [Map Page Plan](architecture/MAP_PAGE_PLAN.md) - MVP map page plan (deferred)
-
-### Phase 4 Design Docs
-- [CMS Experience](architecture/phase4/CMS_EXPERIENCE.md) - Overall CMS UX vision
-- [Story Editor](architecture/phase4/STORY_EDITOR.md) - Plate.js WYSIWYG editor plan
-- [Signal Inbox](architecture/phase4/SIGNAL_INBOX.md) - Root Signal content triage
-- [Email Newsletter](architecture/phase4/EMAIL_NEWSLETTER.md) - Newsletter system design (deferred)
-- [Broadsheet Layout Editor](architecture/phase4/BROADSHEET_LAYOUT_EDITOR.md) - Admin layout editor
-- [Edition Cockpit](architecture/phase4/EDITION_COCKPIT.md) - Dashboard design
-- [Edition Kanban](architecture/phase4/EDITION_KANBAN.md) - Kanban workflow board
-- [Edition Status Model](architecture/phase4/EDITION_STATUS_MODEL.md) - Edition lifecycle states
-- [Editorial Workflow Rework](architecture/phase4/EDITORIAL_WORKFLOW_REWORK.md) - Workflow orientation
-- [Navigation Hierarchy](architecture/phase4/NAVIGATION_HIERARCHY.md) - Admin sidebar structure
-- [Widget System](architecture/phase4/WIDGET_SYSTEM.md) - Widget domain design
+- [Embedding Features Reference](architecture/EMBEDDING_FEATURES_REFERENCE.md) - Removed AI/embedding features catalog
 
 ### Development Guides
 - [API Integration Guide](guides/API_INTEGRATION_GUIDE.md) - Working with the GraphQL API
 - [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
-- [Testing Workflows](guides/TESTING_WORKFLOWS.md) - Test-driven development + API-edge testing guide
+- [Testing Guide](guides/TESTING_GUIDE.md) - Test-driven development + API-edge testing guide
 - [Post ↔ Edition Lifecycle](guides/POST_EDITION_LIFECYCLE.md) - How posts become eligible for editions, multi-edition reuse, and the Root Signal dedup design
 - [Root Signal Ingest Spec](guides/ROOT_SIGNAL_INGEST_SPEC.md) - Post contract Root Signal must honor (draft)
 - [Root Signal Media Ingest](guides/ROOT_SIGNAL_MEDIA_INGEST.md) - Design proposal: fetch + store external images on ingest (not built)

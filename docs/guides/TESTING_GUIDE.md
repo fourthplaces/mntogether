@@ -2,12 +2,6 @@
 
 Test-driven development and API-edge testing for the Rust server.
 
-> **Filename note**: this file is named `TESTING_WORKFLOWS.md` for
-> historical reasons — the project once ran on Restate workflows. The
-> Restate runtime is gone; the server is now a plain Axum HTTP service
-> and testing happens at the HTTP handler boundary. Content below
-> reflects the current state.
-
 ## Architecture
 
 ```

@@ -52,7 +52,7 @@ Connect the CMS to Root Signal so AI-analyzed content flows into editions automa
 
 Triage UI for incoming Root Signal content.
 
-- **Plan:** [SIGNAL_INBOX.md](architecture/phase4/SIGNAL_INBOX.md)
+- **Plan:** [SIGNAL_INBOX.md](architecture/SIGNAL_INBOX.md)
 - **Depends on:** Story Editor (✅ done) for "Edit & Approve" flow, Root Signal (#1) for real data
 - **Scope:** Admin page with filtered post list, bulk approve/reject, edit-before-approve flow
 
@@ -116,7 +116,7 @@ Explicitly punted. These have plans/specs but are not on the active roadmap.
 |---------|-------|-----|
 | **Abuse Reporting** | Backend stubs (5 HTTP handlers, Rust model). Missing: DB migration (`post_reports`), GraphQL, all UI, tests. | [ABUSE_REPORTING.md](architecture/ABUSE_REPORTING.md) |
 | **Map Page** | Plan written, not started. Uses existing tables. | [MAP_PAGE_PLAN.md](architecture/MAP_PAGE_PLAN.md) |
-| **Email Newsletter** | Designed (Amazon SES, subscriber tables). Not started. Most infrastructure-heavy deferred item. | [EMAIL_NEWSLETTER.md](architecture/phase4/EMAIL_NEWSLETTER.md) |
+| **Email Newsletter** | Designed (Amazon SES, subscriber tables). Not started. Most infrastructure-heavy deferred item. | [EMAIL_NEWSLETTER.md](architecture/EMAIL_NEWSLETTER.md) |
 | **Weather Widgets** | 4 components ported (forecast, almanac, thermo, line). No data source API. | — |
 | **Edition Currency Model** | "Latest edition per county" vs week-scoped. | — |
 | **Ticker Strips** | Prototype shows tickers as standalone full-width items between sections. Current approach: tickers-as-rows works visually. Revisit if pacing feels wrong with real content. | — |
@@ -130,5 +130,4 @@ Explicitly punted. These have plans/specs but are not on the active roadmap.
 | `status/BROADSHEET_DESIGN_IMPORT.md` | Says migrations 183/184 "NOT YET APPLIED" — applied long ago (schema now at 211) |
 | `architecture/ROOT_EDITORIAL_PIVOT.md` | Lists Q1–Q10 open questions, several answered by implementation. Needs pass to close resolved Qs. |
 | `architecture/DATABASE_SCHEMA.md` | Covers through migration 171, schema now at 211. Still documents dropped tables. References `description`/`summary` columns (now `body_raw`, summary dropped). |
-| `guides/TESTING_WORKFLOWS.md` | Filename is a historical artifact (Restate is gone) — content was rewritten to reflect current TDD / API-edge testing. Consider renaming the file. |
 | `status/FINAL_SCHEMA_SUMMARY.md` | May reference `description`/`description_markdown`/`summary` columns — renamed/dropped in migration 211. |

@@ -2,7 +2,7 @@
 
 > **Pre-migration design doc.** Written when the plan routed all backend
 > work through Restate. Restate was removed on 2026-03-17 (see
-> `../ARCHITECTURE_DECISIONS.md` Decision 4). References below to
+> `ARCHITECTURE_DECISIONS.md` Decision 4). References below to
 > "Restate handlers / services" and `domains/*/restate/` directories
 > correspond to Axum HTTP handlers in `src/api/routes/{domain}.rs` in
 > the current codebase. Architectural intent is preserved.
@@ -23,7 +23,7 @@ This document describes a comprehensive CMS experience for Root Editorial that a
 
 ## Architecture Direction
 
-> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4** — all backend operations route through Restate.
+> **See [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md), Decision 4** — all backend operations route through Restate.
 
 All CMS features use the standard path: `GraphQL → Restate Ingress → Rust Server → PostgreSQL`.
 - **Media library** CRUD goes through `MediaService` Restate service handlers
@@ -34,7 +34,7 @@ All CMS features use the standard path: `GraphQL → Restate Ingress → Rust Se
 
 ## Content Model Reference
 
-> **See [CMS_SYSTEM_SPEC.md](../CMS_SYSTEM_SPEC.md)** for the full post type system, field groups, tags, and layout engine.
+> **See [CMS_SYSTEM_SPEC.md](CMS_SYSTEM_SPEC.md)** for the full post type system, field groups, tags, and layout engine.
 
 The CMS UI is driven by a type config table — each type is a row defining the form preset:
 
@@ -54,7 +54,7 @@ Adding a 7th type means adding a row. No schema migration, no layout engine chan
 - Which post templates are available in the template override picker (§9.4)
 - The sidebar post type sub-items and their counts (Decision 7 below)
 
-Post templates enforce character limits on the broadsheet preview. See [CMS_SYSTEM_SPEC.md §8](../CMS_SYSTEM_SPEC.md#8-post-templates-and-character-limits) for the truncation model — homepage cards truncate at word boundaries with ellipsis, detail pages show full content.
+Post templates enforce character limits on the broadsheet preview. See [CMS_SYSTEM_SPEC.md §8](CMS_SYSTEM_SPEC.md#8-post-templates-and-character-limits) for the truncation model — homepage cards truncate at word boundaries with ellipsis, detail pages show full content.
 
 ---
 
