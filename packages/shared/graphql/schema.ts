@@ -127,6 +127,18 @@ type Mutation {
   addOrgTag(organizationId: ID!, tagKind: String!, tagValue: String!, displayName: String): Organization!
   removeOrgTag(organizationId: ID!, tagId: ID!): Organization!
 
+  # Organization links (migration 232). When linkId is null, creates; when set, updates.
+  # isPublic=null on create defaults by sourceType (organization → true, individual → false).
+  upsertOrganizationLink(
+    linkId: ID
+    organizationId: ID!
+    platform: String!
+    url: String!
+    isPublic: Boolean
+  ): OrganizationLink!
+  deleteOrganizationLink(linkId: ID!): Boolean!
+  reorderOrganizationLinks(organizationId: ID!, linkIds: [ID!]!): [OrganizationLink!]!
+
   # Tags (admin)
   createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
   updateTagKind(id: ID!, displayName: String, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
@@ -346,6 +358,8 @@ type Organization {
   posts(limit: Int): PostConnection!
   notes: [Note!]!
   checklist: Checklist!
+  """Admin-scoped: includes links with is_public=false."""
+  links: [OrganizationLink!]!
 }
 
 type PublicOrganization {
@@ -354,6 +368,30 @@ type PublicOrganization {
   description: String
   status: OrganizationStatus!
   posts: [PublicPost!]!
+  """Public-facing links only — is_public=true, filtered server-side."""
+  links: [OrganizationLink!]!
+}
+
+"""
+A single profile URL for an organization on an external platform
+(instagram, facebook, etc.). Replaces the old Platform tag kind in
+migration 232. The 'platform' slug matches tags.value where
+tags.kind = 'platform' — the picker UI uses those tag rows as its
+lookup table (display name, emoji, color).
+"""
+type OrganizationLink {
+  id: ID!
+  organizationId: ID!
+  platform: String!
+  url: String!
+  isPublic: Boolean!
+  displayOrder: Int!
+  createdAt: String!
+  updatedAt: String!
+  """Display name from the platform tag row, e.g. "Instagram". May be null for legacy slugs."""
+  platformLabel: String
+  platformEmoji: String
+  platformColor: String
 }
 
 type Checklist {

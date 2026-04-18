@@ -171,6 +171,31 @@ for (const org of orgEntries) {
 }
 out("");
 
+// --- Organization links ----------------------------------------------------
+//
+// The Platform tag kind was replaced by a first-class `organization_links`
+// table in migration 232 (url + is_public + display_order per link). Seed
+// each org that has a website field with a `website` link. This gives the
+// admin Links editor and public profile page something to render without
+// requiring a manual editorial pass on every fresh DB.
+//
+// ON CONFLICT is intentionally omitted because the table has no unique key
+// on (org, platform) — seeding the same file twice would create duplicates.
+// The seed script is meant to be run on a clean DB; pair with `make db-reset`
+// if you need a clean re-run.
+out("-- Organization links (website URLs from seed data)");
+out("DELETE FROM organization_links WHERE organization_id IN (SELECT id FROM organizations);");
+for (const org of orgEntries) {
+  const name = org.name || org.organization;
+  if (!org.website) continue;
+  out(
+    `INSERT INTO organization_links (organization_id, platform, url, is_public, display_order)
+      SELECT id, 'website', ${esc(org.website)}, TRUE, 0
+      FROM organizations WHERE name = ${esc(name)};`
+  );
+}
+out("");
+
 // --- Posts -----------------------------------------------------------------
 
 // Clean up any previous seed run. Only deletes posts marked `is_seed = true`

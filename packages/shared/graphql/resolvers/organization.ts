@@ -218,6 +218,53 @@ export const organizationResolvers = {
       });
     },
 
+    upsertOrganizationLink: async (
+      _parent: unknown,
+      args: {
+        linkId?: string;
+        organizationId: string;
+        platform: string;
+        url: string;
+        isPublic?: boolean;
+      },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Organizations", "upsert_link", {
+        link_id: args.linkId ?? null,
+        organization_id: args.organizationId,
+        platform: args.platform,
+        url: args.url,
+        is_public: args.isPublic ?? null,
+      });
+    },
+
+    deleteOrganizationLink: async (
+      _parent: unknown,
+      args: { linkId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Organizations", "delete_link", {
+        link_id: args.linkId,
+      });
+      return true;
+    },
+
+    reorderOrganizationLinks: async (
+      _parent: unknown,
+      args: { organizationId: string; linkIds: string[] },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{ links: unknown[] }>(
+        "Organizations",
+        "reorder_links",
+        {
+          organization_id: args.organizationId,
+          link_ids: args.linkIds,
+        }
+      );
+      return result.links;
+    },
+
   },
 
   Organization: {
@@ -272,6 +319,39 @@ export const organizationResolvers = {
         "get_checklist",
         { id: parent.id }
       );
+    },
+
+    // Admin-scoped: returns every link regardless of `is_public`.
+    links: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{ links: unknown[] }>(
+        "Organizations",
+        "list_links",
+        { id: parent.id }
+      );
+      return result.links;
+    },
+  },
+
+  PublicOrganization: {
+    // Public read path hits the server's `public_list_links` endpoint,
+    // which filters to `is_public = true` server-side. Editors hiding a
+    // link must be enforced at the server boundary; relying on a client
+    // filter alone would leak the URL in the GraphQL response.
+    links: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{ links: unknown[] }>(
+        "Organizations",
+        "public_list_links",
+        { id: parent.id }
+      );
+      return result.links;
     },
   },
 };

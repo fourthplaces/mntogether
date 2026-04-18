@@ -64,6 +64,14 @@ export const OrganizationDetailFullQuery = graphql(`
         }
         allChecked
       }
+      links {
+        id
+        organizationId
+        platform
+        url
+        isPublic
+        displayOrder
+      }
     }
   }
 `);
@@ -195,6 +203,64 @@ export const RemoveOrgTagMutation = graphql(`
         displayName
         color
       }
+    }
+  }
+`);
+
+// ---------------------------------------------------------------------------
+// Organization links — see migration 232. Replaces the Platform tag kind
+// with first-class URLs + per-link visibility.
+// ---------------------------------------------------------------------------
+
+export const PlatformOptionsQuery = graphql(`
+  query PlatformOptions {
+    tags(kind: "platform") {
+      id
+      value
+      displayName
+      emoji
+      color
+      description
+    }
+  }
+`);
+
+export const UpsertOrganizationLinkMutation = graphql(`
+  mutation UpsertOrganizationLink(
+    $linkId: ID
+    $organizationId: ID!
+    $platform: String!
+    $url: String!
+    $isPublic: Boolean
+  ) {
+    upsertOrganizationLink(
+      linkId: $linkId
+      organizationId: $organizationId
+      platform: $platform
+      url: $url
+      isPublic: $isPublic
+    ) {
+      id
+      organizationId
+      platform
+      url
+      isPublic
+      displayOrder
+    }
+  }
+`);
+
+export const DeleteOrganizationLinkMutation = graphql(`
+  mutation DeleteOrganizationLink($linkId: ID!) {
+    deleteOrganizationLink(linkId: $linkId)
+  }
+`);
+
+export const ReorderOrganizationLinksMutation = graphql(`
+  mutation ReorderOrganizationLinks($organizationId: ID!, $linkIds: [ID!]!) {
+    reorderOrganizationLinks(organizationId: $organizationId, linkIds: $linkIds) {
+      id
+      displayOrder
     }
   }
 `);

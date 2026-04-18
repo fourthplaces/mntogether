@@ -49,9 +49,41 @@ export default function OrganizationDetailPage() {
 
       <h1 className="page-title" style={{ marginBottom: "0.5rem" }}>{org.name}</h1>
       {org.description && (
-        <p className="text-secondary" style={{ marginBottom: "2rem" }}>
+        <p className="text-secondary" style={{ marginBottom: "1.25rem" }}>
           {org.description}
         </p>
+      )}
+
+      {/* Public platform links. The server already filters out is_public=false
+       * links; whatever comes down here is safe to render. */}
+      {org.links && org.links.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+            marginBottom: "2rem",
+          }}
+        >
+          {org.links.map((link) => (
+            <a
+              key={link.id}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-outline"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                padding: "0.375rem 0.75rem",
+              }}
+            >
+              {link.platformEmoji && <span aria-hidden>{link.platformEmoji}</span>}
+              <span>{link.platformLabel ?? link.platform}</span>
+            </a>
+          ))}
+        </div>
       )}
 
       <h2 className="card-title--semi" style={{ marginBottom: "1rem" }}>

@@ -57,6 +57,7 @@ import {
 } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 import { AddNoteDialog } from "@/components/admin/AddNoteDialog";
+import { OrganizationLinksSection } from "@/components/admin/OrganizationLinksSection";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -406,7 +407,10 @@ export default function OrganizationDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
 
           {/* ── LEFT COLUMN (60%) ──────────────────────────────────── */}
-          <div className="space-y-6">
+          {/* min-w-0 so the 2fr track can actually shrink — without it,
+           * a long post title in PostsSection pushes the column wider
+           * and steals space from the right column. */}
+          <div className="space-y-6 min-w-0">
 
             {/* Title / edit form */}
             {editing ? (
@@ -505,6 +509,17 @@ export default function OrganizationDetailPage() {
                 allTagsByKind={allTagsByKind}
                 onRemoveTag={handleRemoveOrgTag}
                 onAddTags={handleAddOrgTags}
+              />
+            </div>
+
+            {/* Platform links — replaces the old Platform tag kind (migration 232).
+             * Each link stores url + is_public; individuals default to private. */}
+            <div className="border-t border-border pt-4">
+              <OrganizationLinksSection
+                organizationId={orgId}
+                sourceType={org.sourceType}
+                links={org.links || []}
+                onChanged={() => reexecuteOrgQuery({ requestPolicy: "network-only" })}
               />
             </div>
 
@@ -740,9 +755,9 @@ function PostsSection({ posts }: { posts: PostData[] }) {
         </TabsList>
       </Tabs>
       {filtered.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No {tab} posts.</p>
+        <p className="text-muted-foreground text-sm mt-3">No {tab} posts.</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-3">
           {filtered.map((post) => (
             <PostRow key={post.id} post={post} />
           ))}

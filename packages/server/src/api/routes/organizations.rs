@@ -9,12 +9,12 @@ use uuid::Uuid;
 use crate::api::auth::AdminUser;
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::state::AppState;
-use crate::common::OrganizationId;
+use crate::common::{OrganizationId, OrganizationLinkId};
 use crate::domains::notes::models::Note;
 use crate::domains::organization::models::organization_checklist::{
     CHECKLIST_KEYS, CHECKLIST_LABELS,
 };
-use crate::domains::organization::models::{Organization, OrganizationChecklistItem};
+use crate::domains::organization::models::{Organization, OrganizationChecklistItem, OrganizationLink};
 use crate::domains::posts::models::Post;
 use crate::common::TagId;
 use crate::domains::tag::models::TagKindConfig;
@@ -535,7 +535,11 @@ async fn toggle_checklist_item(
 
 #[derive(Debug, Deserialize)]
 pub struct OrgAddTagRequest {
-    pub organization_id: Uuid,
+    /// Matches the `id` convention used by every other org endpoint (get,
+    /// list_tags, get_checklist, etc.). The GraphQL resolver always sends `id`;
+    /// when this struct expected `organization_id`, serde 422'd the request and
+    /// the UI silently dropped new tags.
+    pub id: Uuid,
     pub tag_kind: String,
     pub tag_value: String,
     pub display_name: Option<String>,
@@ -543,7 +547,7 @@ pub struct OrgAddTagRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct OrgRemoveTagRequest {
-    pub organization_id: Uuid,
+    pub id: Uuid,
     pub tag_id: Uuid,
 }
 
@@ -593,7 +597,7 @@ async fn add_org_tag(
     Json(req): Json<OrgAddTagRequest>,
 ) -> ApiResult<Json<OrgTagsResult>> {
     let pool = &state.deps.db_pool;
-    let org_id = OrganizationId::from(req.organization_id);
+    let org_id = OrganizationId::from(req.id);
 
     // Check if locked kind — only allow existing tag values
     if let Some(kind_config) = TagKindConfig::find_by_slug(&req.tag_kind, pool).await? {
@@ -625,7 +629,7 @@ async fn remove_org_tag(
     Json(req): Json<OrgRemoveTagRequest>,
 ) -> ApiResult<Json<OrgTagsResult>> {
     let pool = &state.deps.db_pool;
-    let org_id = OrganizationId::from(req.organization_id);
+    let org_id = OrganizationId::from(req.id);
     let tag_id = TagId::from(req.tag_id);
 
     Taggable::delete_org_tag(org_id, tag_id, pool).await?;
@@ -635,6 +639,203 @@ async fn remove_org_tag(
     let tags = Tag::find_for_organization(org_id, pool).await?;
     Ok(Json(OrgTagsResult {
         tags: tags.iter().map(tag_to_result).collect(),
+    }))
+}
+
+// =============================================================================
+// Link operations — per-org external profile URLs (Instagram, Facebook, …).
+// Replaces the old Platform tag kind; see migration 232.
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct OrgLinkResult {
+    pub id: String,
+    pub organization_id: String,
+    pub platform: String,
+    pub url: String,
+    pub is_public: bool,
+    pub display_order: i32,
+    pub created_at: String,
+    pub updated_at: String,
+    /// Joined from `tags` where `kind='platform'` and `value=platform`.
+    /// Lets the public renderer show an emoji + friendly label without a
+    /// second round trip.
+    pub platform_label: Option<String>,
+    pub platform_emoji: Option<String>,
+    pub platform_color: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrgLinksResult {
+    pub links: Vec<OrgLinkResult>,
+}
+
+fn link_to_result(link: &OrganizationLink) -> OrgLinkResult {
+    OrgLinkResult {
+        id: link.id.to_string(),
+        organization_id: link.organization_id.to_string(),
+        platform: link.platform.clone(),
+        url: link.url.clone(),
+        is_public: link.is_public,
+        display_order: link.display_order,
+        created_at: link.created_at.to_rfc3339(),
+        updated_at: link.updated_at.to_rfc3339(),
+        platform_label: link.platform_label.clone(),
+        platform_emoji: link.platform_emoji.clone(),
+        platform_color: link.platform_color.clone(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListOrgLinksRequest {
+    pub id: Uuid,
+    /// When true, only `is_public=true` links are returned. Admin clients
+    /// leave this unset/false; the public resolver passes true.
+    #[serde(default)]
+    pub public_only: bool,
+}
+
+async fn list_org_links(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<ListOrgLinksRequest>,
+) -> ApiResult<Json<OrgLinksResult>> {
+    let pool = &state.deps.db_pool;
+    let org_id = OrganizationId::from(req.id);
+    let mut links = OrganizationLink::find_by_organization(org_id, pool).await?;
+    if req.public_only {
+        links.retain(|l| l.is_public);
+    }
+    Ok(Json(OrgLinksResult {
+        links: links.iter().map(link_to_result).collect(),
+    }))
+}
+
+/// Public read path — no auth required. Only returns `is_public = true`
+/// links regardless of what the caller asks for.
+async fn public_list_org_links(
+    State(state): State<AppState>,
+    Json(req): Json<GetOrganizationRequest>,
+) -> ApiResult<Json<OrgLinksResult>> {
+    let pool = &state.deps.db_pool;
+    let org_id = OrganizationId::from(req.id);
+    let links: Vec<_> = OrganizationLink::find_by_organization(org_id, pool)
+        .await?
+        .into_iter()
+        .filter(|l| l.is_public)
+        .collect();
+    Ok(Json(OrgLinksResult {
+        links: links.iter().map(link_to_result).collect(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertOrgLinkRequest {
+    /// When None, create a new link; when Some, update that id.
+    pub link_id: Option<Uuid>,
+    pub organization_id: Uuid,
+    pub platform: String,
+    pub url: String,
+    /// Optional override. When None on create, defaults follow the source
+    /// type: `organization` → public, `individual` → private.
+    pub is_public: Option<bool>,
+}
+
+async fn upsert_org_link(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<UpsertOrgLinkRequest>,
+) -> ApiResult<Json<OrgLinkResult>> {
+    let pool = &state.deps.db_pool;
+    let org_id = OrganizationId::from(req.organization_id);
+
+    let platform = req.platform.trim();
+    let url = req.url.trim();
+    if platform.is_empty() {
+        return Err(ApiError::BadRequest("platform is required".into()));
+    }
+    if url.is_empty() {
+        return Err(ApiError::BadRequest("url is required".into()));
+    }
+
+    let link = match req.link_id {
+        Some(id) => {
+            // Update path: is_public is required (editor toggled it explicitly).
+            let is_public = req.is_public.unwrap_or(true);
+            OrganizationLink::update(
+                OrganizationLinkId::from(id),
+                platform,
+                url,
+                is_public,
+                pool,
+            )
+            .await?
+        }
+        None => {
+            // Create path: default visibility based on source_type when not
+            // explicitly set.
+            let is_public = match req.is_public {
+                Some(v) => v,
+                None => {
+                    let org = Organization::find_by_id(org_id, pool).await?;
+                    // Orgs default visible, individuals default hidden.
+                    org.source_type != "individual"
+                }
+            };
+            OrganizationLink::create(org_id, platform, url, is_public, pool).await?
+        }
+    };
+
+    info!(
+        org_id = %org_id,
+        link_id = %link.id,
+        platform = %link.platform,
+        is_public = link.is_public,
+        "Upserted org link"
+    );
+
+    Ok(Json(link_to_result(&link)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteOrgLinkRequest {
+    pub link_id: Uuid,
+}
+
+async fn delete_org_link(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<DeleteOrgLinkRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let pool = &state.deps.db_pool;
+    OrganizationLink::delete(OrganizationLinkId::from(req.link_id), pool).await?;
+    info!(link_id = %req.link_id, "Deleted org link");
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReorderOrgLinksRequest {
+    pub organization_id: Uuid,
+    /// Link ids in the desired display order.
+    pub link_ids: Vec<Uuid>,
+}
+
+async fn reorder_org_links(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<ReorderOrgLinksRequest>,
+) -> ApiResult<Json<OrgLinksResult>> {
+    let pool = &state.deps.db_pool;
+    let org_id = OrganizationId::from(req.organization_id);
+    let ids: Vec<OrganizationLinkId> = req
+        .link_ids
+        .into_iter()
+        .map(OrganizationLinkId::from)
+        .collect();
+    OrganizationLink::reorder(org_id, &ids, pool).await?;
+    let links = OrganizationLink::find_by_organization(org_id, pool).await?;
+    Ok(Json(OrgLinksResult {
+        links: links.iter().map(link_to_result).collect(),
     }))
 }
 
@@ -672,4 +873,10 @@ pub fn router() -> Router<AppState> {
         .route("/Organizations/list_tags", post(list_org_tags))
         .route("/Organizations/add_tag", post(add_org_tag))
         .route("/Organizations/remove_tag", post(remove_org_tag))
+        // Links (platform URLs — see migration 232)
+        .route("/Organizations/public_list_links", post(public_list_org_links))
+        .route("/Organizations/list_links", post(list_org_links))
+        .route("/Organizations/upsert_link", post(upsert_org_link))
+        .route("/Organizations/delete_link", post(delete_org_link))
+        .route("/Organizations/reorder_links", post(reorder_org_links))
 }

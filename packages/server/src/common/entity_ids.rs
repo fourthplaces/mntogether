@@ -101,6 +101,9 @@ pub struct PostSource;
 /// Marker type for Locatable entities (polymorphic location associations).
 pub struct Locatable;
 
+/// Marker type for OrganizationLink entities.
+pub struct OrganizationLink;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -182,4 +185,7 @@ pub type PostSourceId = Id<PostSource>;
 
 /// Typed ID for Locatable entities.
 pub type LocatableId = Id<Locatable>;
+
+/// Typed ID for OrganizationLink entities.
+pub type OrganizationLinkId = Id<OrganizationLink>;
 

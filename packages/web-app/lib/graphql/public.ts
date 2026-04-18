@@ -66,6 +66,15 @@ export const PublicOrganizationQuery = graphql(`
       posts {
         ...PublicPostFields
       }
+      links {
+        id
+        platform
+        platformLabel
+        platformEmoji
+        platformColor
+        url
+        displayOrder
+      }
     }
   }
 `);
