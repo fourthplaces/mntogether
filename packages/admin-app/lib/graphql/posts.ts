@@ -59,7 +59,7 @@ export const SignalPostsQuery = graphql(`
       status: $status
       search: $search
       postType: $postType
-      submissionType: "scraped"
+      submissionType: "ingested"
       countyId: $countyId
       statewideOnly: $statewideOnly
       limit: $limit
@@ -108,7 +108,7 @@ export const EditorialPostsQuery = graphql(`
       status: $status
       search: $search
       postType: $postType
-      excludeSubmissionType: "scraped"
+      excludeSubmissionType: "ingested"
       limit: $limit
       offset: $offset
     ) {

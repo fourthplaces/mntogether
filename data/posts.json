@@ -103,7 +103,7 @@
     "weight": "light",
     "priority": 50,
     "pencilMark": "star",
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -7,
     "tags": {
       "topic": [
@@ -130,7 +130,7 @@
     "postType": "story",
     "weight": "light",
     "priority": 48,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -3,
     "tags": {
       "topic": [
@@ -157,7 +157,7 @@
     "postType": "story",
     "weight": "light",
     "priority": 46,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -3,
     "tags": {
       "topic": [
@@ -242,7 +242,7 @@
     "weight": "medium",
     "priority": 70,
     "pencilMark": "star",
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -6,
     "zipCode": "55337",
     "location": "Burnsville, MN",
@@ -300,7 +300,7 @@
     "postType": "story",
     "weight": "medium",
     "priority": 58,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -8,
     "zipCode": "55379",
     "location": "Shakopee, MN",
@@ -358,7 +358,7 @@
     "postType": "story",
     "weight": "light",
     "priority": 44,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -3,
     "tags": {
       "topic": [
@@ -385,7 +385,7 @@
     "postType": "story",
     "weight": "medium",
     "priority": 65,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -5,
     "tags": {
       "topic": [
@@ -466,7 +466,7 @@
     "postType": "story",
     "weight": "medium",
     "priority": 56,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -4,
     "zipCode": "55121",
     "location": "Eagan, MN",
@@ -522,7 +522,7 @@
     "postType": "story",
     "weight": "light",
     "priority": 45,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -3,
     "zipCode": "55430",
     "location": "Brooklyn Center, MN",
@@ -587,7 +587,7 @@
     "weight": "heavy",
     "priority": 95,
     "is_urgent": true,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": 0,
     "zipCode": "55405",
     "location": "Minneapolis, MN",
@@ -617,7 +617,7 @@
     "weight": "heavy",
     "priority": 92,
     "is_urgent": true,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": 0,
     "zipCode": "55411",
     "location": "North Minneapolis, MN",
@@ -648,7 +648,7 @@
     "weight": "medium",
     "priority": 88,
     "is_urgent": true,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": 0,
     "zipCode": "55407",
     "location": "Lake Street, Minneapolis",
@@ -678,7 +678,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 70,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -1,
     "tags": {
       "topic": [
@@ -705,7 +705,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 65,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -1,
     "tags": {
       "topic": [
@@ -731,7 +731,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 60,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -2,
     "tags": {
       "topic": [
@@ -757,7 +757,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 55,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -3,
     "tags": {
       "topic": [
@@ -783,7 +783,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 42,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -5,
     "tags": {
       "topic": [
@@ -809,7 +809,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 40,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -6,
     "tags": {
       "topic": [
@@ -835,7 +835,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 38,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -7,
     "tags": {
       "topic": [
@@ -941,7 +941,7 @@
     "postType": "update",
     "weight": "medium",
     "priority": 64,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -1,
     "zipCode": "55101",
     "location": "St. Paul, MN",
@@ -970,7 +970,7 @@
     "weight": "medium",
     "priority": 85,
     "is_urgent": true,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": 0,
     "tags": {
       "topic": [
@@ -994,7 +994,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 52,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -4,
     "zipCode": "55337",
     "location": "Burnsville, MN",
@@ -1048,7 +1048,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 50,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -5,
     "zipCode": "55379",
     "location": "Shakopee, MN",
@@ -1101,7 +1101,7 @@
     "postType": "update",
     "weight": "medium",
     "priority": 66,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -1,
     "zipCode": "55106",
     "location": "St. Paul, MN",
@@ -1130,7 +1130,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 46,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -6,
     "zipCode": "55420",
     "location": "Bloomington, MN",
@@ -1159,7 +1159,7 @@
     "postType": "update",
     "weight": "light",
     "priority": 44,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -3,
     "zipCode": "55429",
     "location": "Brooklyn Center, MN",
@@ -3834,7 +3834,7 @@
     "postType": "aid",
     "weight": "light",
     "priority": 40,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -1,
     "zipCode": "55433",
     "location": "Coon Rapids, MN",
@@ -4375,7 +4375,7 @@
     "postType": "aid",
     "weight": "light",
     "priority": 35,
-    "submissionType": "ingested",
+    "submissionType": "admin",
     "publishedOffsetDays": -2,
     "zipCode": "56601",
     "location": "Bemidji, MN",

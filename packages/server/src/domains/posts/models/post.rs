@@ -10,7 +10,9 @@ use crate::common::utils::slugs::county_service_area_slug;
 use crate::common::{PaginationDirection, PostId, ValidatedPaginationArgs};
 use crate::domains::schedules::models::Schedule;
 
-/// A post — community content in one of 6 types (story, notice, exchange, event, spotlight, reference).
+/// A post — community content in one of the 9 post types defined by
+/// migration 216: story, update, action, event, need, aid, person,
+/// business, reference.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Post {
     pub id: PostId,
@@ -48,8 +50,10 @@ pub struct Post {
     pub longitude: Option<Decimal>,
     pub zip_code: Option<String>,
 
-    // Submission tracking
-    pub submission_type: Option<String>, // 'ingested', 'admin', 'org_submitted'
+    // Submission tracking — see CHECK constraint in migration 213.
+    // Allowed: 'ingested' (Root Signal extraction), 'admin' (editor via
+    // admin CMS), 'org_submitted', 'reader_submitted', 'revision'.
+    pub submission_type: Option<String>,
 
     // Who submitted this post (member FK)
     pub submitted_by_id: Option<Uuid>,

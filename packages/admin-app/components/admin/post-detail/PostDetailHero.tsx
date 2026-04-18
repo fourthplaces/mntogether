@@ -35,11 +35,17 @@ type HeroPost = {
   updatedAt: string;
 };
 
+// submission_type values are constrained at the DB level to this set
+// (see migration 213). `scraped` was the pre-213 name for `ingested`
+// and was renamed in-place by the migration — no rows carry it anymore.
 const SUBMISSION_LABEL: Record<string, string> = {
   admin: "Created by editor",
-  scraped: "Ingested by Root Signal",
+  ingested: "Ingested by Root Signal",
   org_submitted: "Submitted by org",
-  ingested: "Ingested (legacy)",
+  reader_submitted: "Submitted by reader",
+  revision: "Post revision",
+  // Legacy compat for the `submittedBy.submitterType === 'member'`
+  // fallback below; not a DB enum value.
   member: "Submitted by member",
 };
 
