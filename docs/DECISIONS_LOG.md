@@ -7,33 +7,123 @@
 
 ---
 
+## 2026-04-19 — Session: Preview URLs, Org Links, DnD Fix
+
+### Platform presence is `organization_links` rows, not tags
+
+**Decision:** Migration 232 adds `organization_links (org_id, platform,
+url, is_public, display_order)`. Stripped `organization` from the
+platform tag kind's `allowed_resource_types` and deleted its existing
+`taggables` attachments. The 46 platform tag rows themselves stay as
+a read-only lookup table for the admin Links picker (display name,
+emoji, color).
+
+**Implication:** Tags carry no per-attachment payload. When a future
+feature needs "a thing + a url/flag/ordering per thing," the answer
+is a dedicated table, not a tag kind + sidecar data.
+
+### Default link visibility comes from `source_type`
+
+**Decision:** When `is_public` is omitted on create, the server
+defaults it to TRUE for orgs, FALSE for individuals.
+
+**Implication:** Individuals' platform presence is treated as
+operational context, not public info. If we ever add public pages
+for individuals (we currently don't), revisit the default —
+silently-private links that were never meant to ship could surface.
+
+### No `label` column on organization_links (punted)
+
+**Decision:** Schema is `(platform, url, is_public, display_order)`.
+Considered a `label` field for "two Instagrams — main vs. book club"
+cases; decided against for MVP.
+
+**Reasoning:** Rare case; URL itself disambiguates in the admin list.
+Adding a nullable `label` later is a trivial migration if editors
+hit it.
+
+### Admin-gated post preview at `/preview/posts/[id]`
+
+**Decision:** New Rust `/Post/{id}/preview` handler (AdminUser), new
+GraphQL `postPreview` query, new web-app route mirroring
+`/preview/[editionId]`. The public `post` + `/posts/[id]` route is
+unchanged.
+
+**Implication:** "Admin-gated preview" is now a pattern — both
+editions and posts use it. Future previewable entities (widgets,
+maybe?) should mirror: `/Entity/{id}/preview` AdminUser handler,
+`entityPreview` GraphQL query throwing `UNAUTHENTICATED`, web-app
+`/preview/entities/[id]` page that surfaces 401 as "Admin Access
+Required" instead of a 404.
+
+### "Is this post publicly reachable?" = `status='active' AND ≥1 slotted edition is 'published'`
+
+**Decision:** The admin "View" button uses this check to decide
+between `/posts/[id]` (public) and `/preview/posts/[id]` (admin).
+
+**Implication:** Reuse this predicate anywhere the answer to "can a
+non-admin see this post?" matters — RSS generation, sitemap,
+metrics on "published posts," etc. It's stricter than
+`status='active'` alone, which was the old (wrong) answer.
+
+### Post card navigation: title-as-link, not full-card overlay
+
+**Decision:** `MTitle` reads a `PostDetailLinkContext` set by
+`BroadsheetRenderer`'s SlotRenderer and renders as `<a>` when
+provided. No card-wide overlay. Internal navigation (to detail page)
+and external navigation (`readMore` → source URL) are separate
+affordances.
+
+**Implication:** **Do not reintroduce card-wide overlay anchors.**
+First pass used one; it broke text selection, hover states on inner
+elements, and link underlines inside the body. If a future feature
+wants more of the card clickable (e.g. photo → detail), add specific
+`<a>` wrappers to those elements, don't revive the overlay.
+
+### DnD collision detection must filter by `data.type`, not id prefix
+
+**Decision:** `slotCollisionDetection` looks up each hit's registered
+droppable and accepts it as a "card" only when
+`data.current.type === 'slot'`. The previous `!id.startsWith("drop-")`
+heuristic matched row and section sortable droppables (their ids are
+plain UUIDs) and silently hijacked drops into empty cells.
+
+**Implication:** Any future collision-detection tweak should key on
+`data.type`, not id patterns. Recurring-risk shape: whenever a new
+`useSortable` is added to the same DndContext (e.g. for a new kind
+of reorderable parent), its droppable joins the hit pool. ID-based
+filters will silently regress.
+
+**Gotcha:** `args.droppableContainers` is array-like, not a Map.
+`.get(id)` doesn't exist — iterate and build a Map yourself.
+
+### Commit discipline: wait for user confirmation
+
+**Decision:** Added a "Commit Discipline" section to `CLAUDE.md`.
+Programmatic verification — simulated pointer events, `curl`,
+typecheck, automated click — is not a substitute for the user
+actually performing the interaction. Commit only after they
+confirm.
+
+**Implication:** Workflow rule. If this log shows another "I
+simulated it, committed, user found it broken" pattern, escalate:
+the rule isn't sticking.
+
+---
+
 ## 2026-04-18 — Session: Docs Tidy Pass
 
-### Flatten `phase4/` — temporal grouping doesn't survive
+### Don't organize docs by phase/time
 
-**Decision:** Move all 11 `docs/architecture/phase4/*.md` files up to
-`docs/architecture/`. Don't replace with another subfolder.
+**Decision:** Flattened `docs/architecture/phase4/*` up to
+`docs/architecture/`. Future organization subdivides by *purpose*
+(Core / Data / Features / Deferred), not by when the work happened.
 
-**Reasoning:** The `phase4` grouping was meaningful when active work
-was organized into phases, but most of those docs are now either
-implemented or permanently deferred. Going forward, a flat
-`architecture/` folder subdivided in the README index by purpose
-(Core / Data & Schema / Features / Deferred) is honest about the
-state of each doc without imposing a temporal fiction.
-
-### `TESTING_WORKFLOWS.md` → `TESTING_GUIDE.md`
-
-**Decision:** Rename. The content was already rewritten when Restate
-was removed; the filename was still history.
-
-**Reasoning:** File names should match content. Left a one-line note
-in `docs/TODO.md`'s stale-docs table to close the loop; removed it
-after the rename shipped.
-
-### `DOCKER_ARCHITECTURE.md` belongs under `setup/`, not `architecture/`
-
-**Decision:** Docker is a dev-environment concern, not system
-architecture. Moved it next to the other setup docs.
+**Implication:** If a future session is tempted to create
+`docs/architecture/phase5/`, don't. Temporal groupings stop being
+accurate the moment work finishes — a doc written during "phase 4"
+may describe a now-permanent architectural pillar or a fully
+abandoned idea, and the folder name tells you neither.
 
 ---
 

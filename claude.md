@@ -191,6 +191,28 @@ docker compose down <service> && docker compose up -d <service>
 
 ---
 
+## Commit Discipline
+
+### Don't commit until the user has tested and confirmed
+
+Programmatic verification — simulated clicks, synthetic pointer events,
+`curl` hitting an endpoint, a typecheck passing — is **not** the same as
+the user actually performing the interaction in their browser. An
+automated "it works" has been wrong enough times on this project that
+it's no longer trusted.
+
+When a change is ready:
+
+1. Push it to the working tree and tell the user what to check.
+2. Stop. Wait for their confirmation.
+3. Only commit after they say it works.
+
+If the user explicitly says "commit," that's the green light. Otherwise
+a clean typecheck + a passing automated probe is a *starting point* for
+their test, not a substitute for it.
+
+---
+
 ## Documentation Organization
 
 All documentation goes in `docs/`, not the project root. `README.md` is the only exception.
