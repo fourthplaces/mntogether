@@ -1,0 +1,2051 @@
+{
+  "total": 168,
+  "perPost": [
+    {
+      "title": "“I Didn’t Know Where to Turn”—How One Family Found Help After a House Fire",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1360,
+      "gaps": [
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Thousands Expected at Region’s Largest Winter Food Drive",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1394,
+      "gaps": [
+        "meta:byline_missing",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "How a Block Club in Phillips Organized Its Own Warming Station",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1456,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Point-in-Time Count Shows 12% Drop in Unsheltered Homelessness",
+      "postType": "story",
+      "weight": "light",
+      "bodyRawLen": 229,
+      "gaps": [
+        "body:raw_below_250_chars (got 229)",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Minnesota Resettles 1,200 Afghan Refugees—What’s Next",
+      "postType": "story",
+      "weight": "light",
+      "bodyRawLen": 269,
+      "gaps": [
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Twin Cities Urban Tree Canopy Drops 8% Since 2015",
+      "postType": "story",
+      "weight": "light",
+      "bodyRawLen": 284,
+      "gaps": [
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Hennepin County Pilots Guaranteed Income Program for 200 Families",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1462,
+      "gaps": [
+        "source:attribution_missing",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "St. Paul Library System Expands Multilingual Story Hours",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 364,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Dakota County Food Shelves Report 40% Surge in First-Time Visitors",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 404,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 144)",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Inside the Push to Build 1,000 Affordable Units Along the Green Line",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1514,
+      "gaps": [
+        "source:attribution_missing",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Scott County Schools See Record English Learner Enrollment",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 305,
+      "gaps": [
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Stillwater’s First Community Fridge Opens on Main Street",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 335,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 146)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Metro Transit Ridership Rebounds to Pre-Pandemic Levels on Blue Line",
+      "postType": "story",
+      "weight": "light",
+      "bodyRawLen": 207,
+      "gaps": [
+        "body:raw_below_250_chars (got 207)",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "New Law Expands Tenant Protections for Families With Children",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 414,
+      "gaps": [
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Washington County Opens New Mental Health Crisis Center",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 374,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Brooklyn Park Youth Program Graduates First Cohort of Apprentices",
+      "postType": "story",
+      "weight": "light",
+      "bodyRawLen": 280,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Eagan Breaks Ground on Affordable Senior Housing Complex",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 313,
+      "gaps": [
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Ramsey County Launches Eviction Diversion Pilot",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 390,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 149)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Community Solar Garden Brings Lower Bills to 300 Renters in Brooklyn Center",
+      "postType": "story",
+      "weight": "light",
+      "bodyRawLen": 286,
+      "gaps": [
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Local Chef Turns Food Waste Into 500 Free Meals a Week",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 459,
+      "gaps": [
+        "source:attribution_missing"
+      ]
+    },
+    {
+      "title": "Winter Shelter Beds Available Tonight—Walk-ins Welcome",
+      "postType": "update",
+      "weight": "heavy",
+      "bodyRawLen": 1332,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 145)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "meta:deck_missing_on_heavy",
+        "type_group:update_needs_contacts_or_link",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Boil Water Advisory—North Minneapolis",
+      "postType": "update",
+      "weight": "heavy",
+      "bodyRawLen": 1410,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "meta:deck_missing_on_heavy",
+        "type_group:update_needs_contacts_or_link",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "ICE Activity Reported Near Lake Street",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 326,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 133)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Hennepin County Opens 3 New Warming Centers Through March",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 259,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "MNsure Open Enrollment Extended to March 15",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 256,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Free Tax Prep Sites Open at 12 Library Locations",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 236,
+      "gaps": [
+        "body:raw_below_250_chars (got 236)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "SNAP Benefits: March EBT Deposits Begin March 4",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 253,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "SNAP Benefits: Processing Delays Expected This Week",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 187,
+      "gaps": [
+        "body:raw_below_250_chars (got 187)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Minneapolis Public Schools Announce Snow Day Protocol Changes",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 265,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Metro Transit Adds Overnight Service on Route 5",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 239,
+      "gaps": [
+        "body:raw_below_250_chars (got 239)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Tell Your Rep: Fund Emergency Rental Assistance",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 310,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 123)",
+        "meta:kicker_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Make Your Community Count",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 282,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing"
+      ]
+    },
+    {
+      "title": "Register to Vote or Check Your Status",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 310,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 140)",
+        "source:attribution_missing",
+        "meta:block_missing"
+      ]
+    },
+    {
+      "title": "Ramsey County Emergency Assistance Applications Now Online",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 308,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Severe Thunderstorm Watch: Metro Area Until 10pm",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 294,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 130)",
+        "source:attribution_missing",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Dakota County WIC Offices Extend Hours for Working Parents",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 274,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Free School Supply Kits Available at North Minneapolis Libraries",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 220,
+      "gaps": [
+        "body:raw_below_250_chars (got 220)",
+        "source:attribution_missing",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Shakopee Food Shelf Adds Halal and Latino Staples",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 258,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Cottage Grove Opens New Playground at Kingston Park",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 228,
+      "gaps": [
+        "body:raw_below_250_chars (got 228)",
+        "source:attribution_missing",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Free Legal Clinic for Immigrants This Saturday at CLUES",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 293,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Hennepin County Expands Free Diaper Program",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 318,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "New Bus Rapid Transit Station Open at Brooklyn Blvd",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 252,
+      "gaps": [
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Family of 4 Needs Temporary Housing—South Metro",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 283,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 119)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Food Shelf Volunteers—Weekday Mornings",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 268,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 145)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Winter Coats & Boots—All Sizes",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 267,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 144)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "ESL Conversation Partners",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 221,
+      "gaps": [
+        "body:raw_below_250_chars (got 221)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Interpretation—Somali & Hmong",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 203,
+      "gaps": [
+        "body:raw_below_250_chars (got 203)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Mobile Pantry Drivers—Saturdays",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 244,
+      "gaps": [
+        "body:raw_below_250_chars (got 244)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Room Available in North Minneapolis—Low Cost",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 253,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 134)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free Furniture—Beds, Tables, Chairs",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 233,
+      "gaps": [
+        "body:raw_below_250_chars (got 233)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Pro Bono Legal Help—Immigration Cases",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 264,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 128)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free After-School Program—Ages 6–12",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 258,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 127)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free Rides to Medical Appointments",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 205,
+      "gaps": [
+        "body:raw_below_250_chars (got 205)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Bicycle Repair—Free for Anyone",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 228,
+      "gaps": [
+        "body:raw_below_250_chars (got 228)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Sewing Machine & Fabric—Free to Take",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 227,
+      "gaps": [
+        "body:raw_below_250_chars (got 227)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Somali Women’s Support Circle—Weekly Meetings",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 265,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 125)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Volunteer Tax Preparers Needed—VITA Program",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 293,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Garden Plots Available—Midtown Community Garden",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 258,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Cribs & Car Seats—New, Free for Qualifying Families",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 263,
+      "gaps": [
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Karen Language Tutors for K–3 Students",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 220,
+      "gaps": [
+        "body:raw_below_250_chars (got 220)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free Laptops for Job Seekers",
+      "postType": "aid",
+      "weight": "medium",
+      "bodyRawLen": 267,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 143)",
+        "meta:block_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Community Food Drive & Resource Fair",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 310,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 146)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Know Your Rights Workshop",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 262,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 145)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Karen New Year Celebration",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 277,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 133)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Tenant Rights Clinic",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 255,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 131)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Community Health Fair & Free Screenings",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 238,
+      "gaps": [
+        "body:raw_below_250_chars (got 238)",
+        "body:medium_missing_or_below_150 (got 125)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Adult Literacy Circle",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 221,
+      "gaps": [
+        "body:raw_below_250_chars (got 221)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Citizenship Test Prep Class",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 211,
+      "gaps": [
+        "body:raw_below_250_chars (got 211)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Morning Recovery Meeting",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 142,
+      "gaps": [
+        "body:raw_below_250_chars (got 142)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Hmong New Year Celebration",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 415,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 141)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Drop Off Donations at Lakeville’s Spring Food Drive",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 288,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 140)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Craft & Connection Morning at Community Thread",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 269,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 134)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Free Dental Day at Open Cities Health Center",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 258,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 137)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Resume Workshop for New Americans",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 188,
+      "gaps": [
+        "body:raw_below_250_chars (got 188)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Youth Basketball League Registration Open",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 201,
+      "gaps": [
+        "body:raw_below_250_chars (got 201)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Somali Bantu Community Gathering",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 237,
+      "gaps": [
+        "body:raw_below_250_chars (got 237)",
+        "body:medium_missing_or_below_150 (got 141)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Free Car Seat Safety Check",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 210,
+      "gaps": [
+        "body:raw_below_250_chars (got 210)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Scott County Job Fair",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 271,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 137)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Washington County Family Fun Day",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 225,
+      "gaps": [
+        "body:raw_below_250_chars (got 225)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Parenting Through Immigration Stress—Support Group",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 232,
+      "gaps": [
+        "body:raw_below_250_chars (got 232)",
+        "meta:block_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Li Nguyen",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 365,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Marcus Thompson",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 357,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 127)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Pimento Jamaican Kitchen",
+      "postType": "business",
+      "weight": "medium",
+      "bodyRawLen": 283,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 125)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "Hmong Village Shopping Center",
+      "postType": "business",
+      "weight": "medium",
+      "bodyRawLen": 301,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 147)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "Midtown Global Market",
+      "postType": "business",
+      "weight": "medium",
+      "bodyRawLen": 310,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 134)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "Karmel Mall",
+      "postType": "business",
+      "weight": "medium",
+      "bodyRawLen": 308,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 140)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "Fatima Abdi",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 352,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "David Xiong",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 340,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 145)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Rosa Mendez",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 345,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 147)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Tou Moua’s Garden",
+      "postType": "person",
+      "weight": "light",
+      "bodyRawLen": 270,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Maria’s Pupuseria",
+      "postType": "business",
+      "weight": "light",
+      "bodyRawLen": 270,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "James Fairbanks",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 313,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 129)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Oakdale Family Bakery",
+      "postType": "business",
+      "weight": "light",
+      "bodyRawLen": 269,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "Amira Hassan",
+      "postType": "person",
+      "weight": "light",
+      "bodyRawLen": 267,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "New Prague Butcher Shop",
+      "postType": "business",
+      "weight": "light",
+      "bodyRawLen": 254,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:business_missing_contacts"
+      ]
+    },
+    {
+      "title": "Hennepin County Food Shelves",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 200,
+      "gaps": [
+        "body:raw_below_250_chars (got 200)",
+        "body:medium_missing_or_below_150 (got 115)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Ramsey County Food Shelves",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 179,
+      "gaps": [
+        "body:raw_below_250_chars (got 179)",
+        "body:medium_missing_or_below_150 (got 117)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free Tax Prep Sites in Hennepin County",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 196,
+      "gaps": [
+        "body:raw_below_250_chars (got 196)",
+        "body:medium_missing_or_below_150 (got 103)",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free Health Clinics—No Insurance Needed",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 216,
+      "gaps": [
+        "body:raw_below_250_chars (got 216)",
+        "body:medium_missing_or_below_150 (got 123)",
+        "meta:block_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Dakota County Food Resources",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 192,
+      "gaps": [
+        "body:raw_below_250_chars (got 192)",
+        "body:medium_missing_or_below_150 (got 134)",
+        "source:attribution_missing",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Emergency Shelter & Housing Help",
+      "postType": "reference",
+      "weight": "heavy",
+      "bodyRawLen": 1514,
+      "gaps": [
+        "body:medium_missing_or_below_150 (got 131)",
+        "source:attribution_missing",
+        "meta:kicker_missing",
+        "meta:byline_missing",
+        "meta:deck_missing_on_heavy",
+        "type_group:reference_missing_contacts",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Immigration Legal Help in Minnesota",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 225,
+      "gaps": [
+        "body:raw_below_250_chars (got 225)",
+        "body:medium_missing_or_below_150 (got 122)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Scott County Community Resources",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 171,
+      "gaps": [
+        "body:raw_below_250_chars (got 171)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Washington County Food & Help",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 190,
+      "gaps": [
+        "body:raw_below_250_chars (got 190)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Childcare & Early Learning Resources",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 216,
+      "gaps": [
+        "body:raw_below_250_chars (got 216)",
+        "body:medium_missing_or_below_150 (got 140)",
+        "source:attribution_missing",
+        "meta:block_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "When the Plow Doesn't Come: A Winter in Rural Aitkin",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1511,
+      "gaps": [
+        "source:attribution_missing",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "McGregor Ice Fishing Fundraiser Draws 400, Nets $18K for Food Shelf",
+      "postType": "story",
+      "weight": "medium",
+      "bodyRawLen": 232,
+      "gaps": [
+        "body:raw_below_250_chars (got 232)",
+        "body:medium_missing_or_below_150 (got 131)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Aitkin County Household Hazardous Waste Collection — March 22",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 173,
+      "gaps": [
+        "body:raw_below_250_chars (got 173)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "County Commissioners Seek Public Input on Broadband Expansion",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 198,
+      "gaps": [
+        "body:raw_below_250_chars (got 198)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Seeking: Volunteer Drivers for Meals on Wheels — North Route",
+      "postType": "need",
+      "weight": "medium",
+      "bodyRawLen": 165,
+      "gaps": [
+        "body:raw_below_250_chars (got 165)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Ruby's Diner in Palisade Reopens After Kitchen Fire",
+      "postType": "business",
+      "weight": "medium",
+      "bodyRawLen": 231,
+      "gaps": [
+        "body:raw_below_250_chars (got 231)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:business_missing_contacts",
+        "type_group:business_missing_scheduleEntries"
+      ]
+    },
+    {
+      "title": "Aitkin County Community Resources",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 136,
+      "gaps": [
+        "body:raw_below_250_chars (got 136)",
+        "body:medium_missing_or_below_150 (got 136)",
+        "body:light_missing_or_below_30 (got 0)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Malmo Fire Hall Open House — This Saturday",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 90,
+      "gaps": [
+        "body:raw_below_250_chars (got 90)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Library Reopens Children's Section After Roof Repairs",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 89,
+      "gaps": [
+        "body:raw_below_250_chars (got 89)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Highway 169 Bridge Deck Work Scheduled for April 3–5",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 96,
+      "gaps": [
+        "body:raw_below_250_chars (got 96)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Coon Rapids Launches Warming Bus Pilot After Deadly Cold Snap",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1494,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:deck_missing_on_heavy",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Andover High School Launches Free Dental Clinic Saturday",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 192,
+      "gaps": [
+        "body:raw_below_250_chars (got 192)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Renter Protection Workshop — Blaine Library",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 184,
+      "gaps": [
+        "body:raw_below_250_chars (got 184)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Anoka County Community Action Expands SNAP Navigation Hours",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 196,
+      "gaps": [
+        "body:raw_below_250_chars (got 196)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Volunteer Needed: Kids' Reading Mentors, Blaine Elementary",
+      "postType": "need",
+      "weight": "medium",
+      "bodyRawLen": 161,
+      "gaps": [
+        "body:raw_below_250_chars (got 161)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free: Baby Clothes and Gear, Coon Rapids",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 88,
+      "gaps": [
+        "body:raw_below_250_chars (got 88)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Dr. Amara Okonkwo — The Pediatrician Behind Anoka's School Clinic Program",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 241,
+      "gaps": [
+        "body:raw_below_250_chars (got 241)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Anoka County Food & Housing Help Directory",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 70,
+      "gaps": [
+        "body:raw_below_250_chars (got 70)",
+        "body:medium_missing_or_below_150 (got 70)",
+        "body:light_missing_or_below_30 (got 0)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Ramsey Library Offers Free Tax Prep Appointments",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 79,
+      "gaps": [
+        "body:raw_below_250_chars (got 79)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Fridley Skate Park Reopens After Drainage Repair",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 75,
+      "gaps": [
+        "body:raw_below_250_chars (got 75)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Detroit Lakes' Summer Workforce Squeeze: When Staff Can't Afford to Live Here",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1548,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:deck_missing_on_heavy",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Frazee Turkey Trot 5K — Saturday Morning",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 140,
+      "gaps": [
+        "body:raw_below_250_chars (got 140)",
+        "body:medium_missing_or_below_150 (got 140)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "County Seeks Public Comment on Wastewater Grant Proposal",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 181,
+      "gaps": [
+        "body:raw_below_250_chars (got 181)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Mahube-Otwa Resumes Weatherization Waitlist",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 228,
+      "gaps": [
+        "body:raw_below_250_chars (got 228)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Donation Drive: School Supplies for Lake Park-Audubon Students",
+      "postType": "need",
+      "weight": "medium",
+      "bodyRawLen": 177,
+      "gaps": [
+        "body:raw_below_250_chars (got 177)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "The Bait Box: How a Detroit Lakes Shop Became the Town's Unofficial Job Board",
+      "postType": "business",
+      "weight": "medium",
+      "bodyRawLen": 289,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:business_missing_contacts",
+        "type_group:business_missing_scheduleEntries"
+      ]
+    },
+    {
+      "title": "Becker County Emergency Resource Directory",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 87,
+      "gaps": [
+        "body:raw_below_250_chars (got 87)",
+        "body:medium_missing_or_below_150 (got 87)",
+        "body:light_missing_or_below_30 (got 0)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Detroit Lakes Senior Center Lunch Menu Now Online",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 92,
+      "gaps": [
+        "body:raw_below_250_chars (got 92)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Ice Road Season Extended on Big Detroit Lake",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 85,
+      "gaps": [
+        "body:raw_below_250_chars (got 85)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Highway 34 Repaving Pushed to May",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 85,
+      "gaps": [
+        "body:raw_below_250_chars (got 85)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Bemidji's Cold-Weather Shelter Ran Out of Beds Every Night in February",
+      "postType": "story",
+      "weight": "heavy",
+      "bodyRawLen": 1528,
+      "gaps": [
+        "source:attribution_missing",
+        "meta:deck_missing_on_heavy",
+        "media:no_hero_on_heavy"
+      ]
+    },
+    {
+      "title": "Bemidji Pow Wow Returns to Sanford Center — April 13",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 196,
+      "gaps": [
+        "body:raw_below_250_chars (got 196)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Kelliher Community Clinic Opens Walk-in Mental Health Hours",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 163,
+      "gaps": [
+        "body:raw_below_250_chars (got 163)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Bemidji Community Food Shelf Seeks Saturday Volunteers",
+      "postType": "need",
+      "weight": "medium",
+      "bodyRawLen": 132,
+      "gaps": [
+        "body:raw_below_250_chars (got 132)",
+        "body:medium_missing_or_below_150 (got 132)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Free: Ice Fishing Gear Bundle, Bemidji Pickup",
+      "postType": "aid",
+      "weight": "light",
+      "bodyRawLen": 79,
+      "gaps": [
+        "body:raw_below_250_chars (got 79)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:aid_missing_items",
+        "type_group:aid_missing_contacts"
+      ]
+    },
+    {
+      "title": "Jessica Roy Built Bemidji's First Indigenous-Run Doula Collective",
+      "postType": "person",
+      "weight": "medium",
+      "bodyRawLen": 246,
+      "gaps": [
+        "body:raw_below_250_chars (got 246)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:person_missing_media"
+      ]
+    },
+    {
+      "title": "Beltrami County Crisis & Support Directory",
+      "postType": "reference",
+      "weight": "medium",
+      "bodyRawLen": 81,
+      "gaps": [
+        "body:raw_below_250_chars (got 81)",
+        "body:medium_missing_or_below_150 (got 81)",
+        "body:light_missing_or_below_30 (got 0)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "BSU Hockey Arena Hosting Free Community Skate Every Sunday",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 84,
+      "gaps": [
+        "body:raw_below_250_chars (got 84)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Blackduck Public Schools Extend Late Bus Through April",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 85,
+      "gaps": [
+        "body:raw_below_250_chars (got 85)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Tribal Tax Credit Workshop — Saturday at Red Lake Nation College",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 77,
+      "gaps": [
+        "body:raw_below_250_chars (got 77)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Aitkin County Quick Help",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 41,
+      "gaps": [
+        "body:raw_below_250_chars (got 41)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Anoka County Quick Help",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 40,
+      "gaps": [
+        "body:raw_below_250_chars (got 40)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Becker County Quick Help",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 41,
+      "gaps": [
+        "body:raw_below_250_chars (got 41)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Beltrami County Quick Help",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 43,
+      "gaps": [
+        "body:raw_below_250_chars (got 43)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "MN Statewide Hotlines",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 51,
+      "gaps": [
+        "body:raw_below_250_chars (got 51)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Need: Winter Coats for Kids, Sizes 6–12",
+      "postType": "need",
+      "weight": "light",
+      "bodyRawLen": 97,
+      "gaps": [
+        "body:raw_below_250_chars (got 97)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Need: Ride to VA Clinic, Tuesdays from Aitkin",
+      "postType": "need",
+      "weight": "light",
+      "bodyRawLen": 76,
+      "gaps": [
+        "body:raw_below_250_chars (got 76)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Need: Interpreter for Somali Family, Anoka School Meeting",
+      "postType": "need",
+      "weight": "light",
+      "bodyRawLen": 98,
+      "gaps": [
+        "body:raw_below_250_chars (got 98)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Need: Wheelchair Ramp Build Volunteer, Bemidji",
+      "postType": "need",
+      "weight": "light",
+      "bodyRawLen": 100,
+      "gaps": [
+        "body:raw_below_250_chars (got 100)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:need_missing_items",
+        "type_group:need_missing_contacts"
+      ]
+    },
+    {
+      "title": "Tax Help Available Through April 15",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 235,
+      "gaps": [
+        "body:raw_below_250_chars (got 235)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Daylight Saving Time: Clocks Spring Forward March 9",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 98,
+      "gaps": [
+        "body:raw_below_250_chars (got 98)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Ice Safety: Know Before You Go",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 118,
+      "gaps": [
+        "body:raw_below_250_chars (got 118)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Free Radon Test Kits Available from MDH",
+      "postType": "action",
+      "weight": "light",
+      "bodyRawLen": 115,
+      "gaps": [
+        "body:raw_below_250_chars (got 115)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "MN State Fair Senior Days: Free Admission for 65+",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 102,
+      "gaps": [
+        "body:raw_below_250_chars (got 102)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Minnesota Book Awards Open Reader Submissions",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 112,
+      "gaps": [
+        "body:raw_below_250_chars (got 112)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Farmers Market Season Opens May",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 125,
+      "gaps": [
+        "body:raw_below_250_chars (got 125)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "MN Voter Information: Check Status Year-Round",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 103,
+      "gaps": [
+        "body:raw_below_250_chars (got 103)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    },
+    {
+      "title": "Burn Ban Season: Check Before Burning",
+      "postType": "update",
+      "weight": "light",
+      "bodyRawLen": 122,
+      "gaps": [
+        "body:raw_below_250_chars (got 122)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Mental Health First Aid Training — Multiple Sites",
+      "postType": "event",
+      "weight": "medium",
+      "bodyRawLen": 187,
+      "gaps": [
+        "body:raw_below_250_chars (got 187)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_missing_datetime",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Statewide Weather: Watch for Spring Flooding",
+      "postType": "update",
+      "weight": "medium",
+      "bodyRawLen": 223,
+      "gaps": [
+        "body:raw_below_250_chars (got 223)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:update_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Minnesota State Parks: Free Entry Days",
+      "postType": "event",
+      "weight": "light",
+      "bodyRawLen": 99,
+      "gaps": [
+        "body:raw_below_250_chars (got 99)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:event_missing_datetime",
+        "type_group:event_needs_contacts_or_link"
+      ]
+    },
+    {
+      "title": "Energy Assistance Open Through May 31",
+      "postType": "action",
+      "weight": "medium",
+      "bodyRawLen": 194,
+      "gaps": [
+        "body:raw_below_250_chars (got 194)",
+        "source:attribution_missing",
+        "meta:byline_missing"
+      ]
+    },
+    {
+      "title": "Free Naloxone Distribution at Participating Pharmacies",
+      "postType": "reference",
+      "weight": "light",
+      "bodyRawLen": 99,
+      "gaps": [
+        "body:raw_below_250_chars (got 99)",
+        "source:attribution_missing",
+        "meta:byline_missing",
+        "type_group:reference_missing_contacts"
+      ]
+    }
+  ],
+  "gapCounts": {
+    "media:no_hero_on_heavy": 12,
+    "meta:byline_missing": 106,
+    "source:attribution_missing": 110,
+    "body:raw_below_250_chars": 92,
+    "body:medium_missing_or_below_150": 50,
+    "meta:kicker_missing": 25,
+    "meta:deck_missing_on_heavy": 6,
+    "type_group:update_needs_contacts_or_link": 40,
+    "meta:block_missing": 54,
+    "type_group:aid_missing_items": 21,
+    "type_group:aid_missing_contacts": 21,
+    "type_group:event_needs_contacts_or_link": 26,
+    "type_group:person_missing_media": 10,
+    "type_group:business_missing_contacts": 9,
+    "type_group:reference_missing_contacts": 21,
+    "type_group:need_missing_items": 8,
+    "type_group:need_missing_contacts": 8,
+    "type_group:business_missing_scheduleEntries": 2,
+    "body:light_missing_or_below_30": 4,
+    "type_group:event_missing_datetime": 2
+  },
+  "perType": {
+    "story": {
+      "total": 25,
+      "gapsTotal": 50
+    },
+    "update": {
+      "total": 40,
+      "gapsTotal": 156
+    },
+    "action": {
+      "total": 8,
+      "gapsTotal": 23
+    },
+    "aid": {
+      "total": 21,
+      "gapsTotal": 89
+    },
+    "event": {
+      "total": 26,
+      "gapsTotal": 96
+    },
+    "person": {
+      "total": 10,
+      "gapsTotal": 36
+    },
+    "business": {
+      "total": 9,
+      "gapsTotal": 34
+    },
+    "reference": {
+      "total": 21,
+      "gapsTotal": 102
+    },
+    "need": {
+      "total": 8,
+      "gapsTotal": 41
+    }
+  },
+  "perWeight": {
+    "heavy": {
+      "total": 12,
+      "gapsTotal": 39
+    },
+    "light": {
+      "total": 77,
+      "gapsTotal": 286
+    },
+    "medium": {
+      "total": 79,
+      "gapsTotal": 302
+    }
+  },
+  "perfectPosts": 0
+}

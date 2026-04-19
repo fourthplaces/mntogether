@@ -1,5 +1,12 @@
 # Root Signal → Root Editorial: Post Ingest Specification
 
+> ⚠️ **SUPERSEDED 2026-04-19.** Merged into the authoritative contract at
+> [`docs/architecture/ROOT_SIGNAL_DATA_CONTRACT.md`](../architecture/ROOT_SIGNAL_DATA_CONTRACT.md),
+> which adds the individual-source model, organization dedup rules, per-post-type field-group
+> requirements, a 250-char floor on `body_raw`, and a full validation-rules section.
+>
+> This file is kept for historical reference only. Do not cite in new work.
+
 **Status:** Draft — to be finalized before live Signal integration.
 **Audience:** Root Signal engineering team, Root Editorial editors.
 

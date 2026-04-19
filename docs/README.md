@@ -35,7 +35,8 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 - [Rust Implementation](architecture/RUST_IMPLEMENTATION.md) - Rust backend details
 - [Rust Project Structure](architecture/RUST_PROJECT_STRUCTURE.md) - Rust codebase layout
 - [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
-- [Root Signal Spec](architecture/ROOT_SIGNAL_SPEC.md) - Root Signal API contract (draft)
+- [Root Signal Data Contract](architecture/ROOT_SIGNAL_DATA_CONTRACT.md) - **Authoritative** spec: every field Root Signal must produce per post, with length targets, per-post-type requirements, source model, and validation rules
+- [Root Signal Spec](architecture/ROOT_SIGNAL_SPEC.md) - ⚠️ Superseded — kept for history
 
 ### Architecture — Data & Schema
 - [Data Model](architecture/DATA_MODEL.md) - Core entity relationships
@@ -68,8 +69,9 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 - [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
 - [Testing Guide](guides/TESTING_GUIDE.md) - Test-driven development + API-edge testing guide
 - [Post ↔ Edition Lifecycle](guides/POST_EDITION_LIFECYCLE.md) - How posts become eligible for editions, multi-edition reuse, and the Root Signal dedup design
-- [Root Signal Ingest Spec](guides/ROOT_SIGNAL_INGEST_SPEC.md) - Post contract Root Signal must honor (draft)
+- [Root Signal Ingest Spec](guides/ROOT_SIGNAL_INGEST_SPEC.md) - ⚠️ Superseded by ROOT_SIGNAL_DATA_CONTRACT — kept for history
 - [Root Signal Media Ingest](guides/ROOT_SIGNAL_MEDIA_INGEST.md) - Design proposal: fetch + store external images on ingest (not built)
+- [Seed Data Enrichment Plan](guides/SEED_DATA_ENRICHMENT_PLAN.md) - Plan to bring `data/posts.json` up to the data-contract bar (pending execution)
 - [Server-Side Image Processing](guides/SERVER_SIDE_IMAGE_PROCESSING.md) - Design proposal: move resize/recompress to the Rust server (not built)
 
 ### Admin & CMS

@@ -1,5 +1,12 @@
 # Root Signal API Specification
 
+> ⚠️ **SUPERSEDED 2026-04-19.** This doc's framing (Root Signal as an enrichment-only
+> service that updates existing posts) no longer matches the agreed model. Root Signal
+> is the *producer* of posts; Root Editorial is the *consumer*. The authoritative spec
+> lives at [`docs/architecture/ROOT_SIGNAL_DATA_CONTRACT.md`](./ROOT_SIGNAL_DATA_CONTRACT.md).
+>
+> This file is kept for historical reference only. Do not cite in new work.
+
 > **Status:** Draft — defines what Root Editorial expects from Root Signal.
 > **Date:** 2026-03-10
 
