@@ -531,8 +531,17 @@ export default function EditionDetailPage() {
         </div>
 
         {/* Body — constrained column, same max-w as the header's inner
-         * column so content aligns along both left and right edges. */}
-        <div className="max-w-6xl mx-auto">
+         * column so content aligns along both left and right edges.
+         *
+         * `w-full` is load-bearing here: this div is a direct flex-child
+         * of <Tabs> (which renders flex-col). In flex-col, `mx-auto`
+         * applies auto margins on the CROSS axis, which suppresses the
+         * default align-items: stretch and makes the column shrink to
+         * its content's intrinsic width. With `w-full`, the column
+         * always fills up to max-w-6xl regardless of which tab is
+         * active — otherwise the Posts/Widgets tables render narrower
+         * than the Layout grid. */}
+        <div className="w-full max-w-6xl mx-auto">
           {actionError && (
             <Alert variant="error" className="mx-6 mt-4">
               <AlertDescription>{actionError}</AlertDescription>
