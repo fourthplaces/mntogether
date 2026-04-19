@@ -194,36 +194,31 @@ body:has(.broadsheet-page) {
 .cell--span-4 { grid-column: span 4; }
 .cell--span-6 { grid-column: span 6; }
 
-/* ── Linked card pattern ──
-   Post cards are wholly clickable (→ detail page) while still allowing
-   inner <a>/<button> elements (CTA links, external references) to take
-   precedence on click. An absolute-positioned overlay anchor spans the
-   card; inner interactives are lifted above it via z-index. This avoids
-   nesting <a> inside <a>, which is invalid HTML and breaks hydration. */
-.post-link {
-  position: relative;
+/* ── Card title link ──
+   The post card's title is the single navigation affordance to the
+   detail page. Rendering the title as an <a> (rather than wrapping the
+   whole card in one) preserves text selection, hover states on inner
+   interactive elements, and standard link underline behavior inside
+   the body. Styled to inherit color and drop underline so the link
+   visually matches the headline treatment — the cursor + focus ring
+   are the only interactivity cues. */
+.post-title-link {
+  /* Restore block layout the original <div>-based title had, so
+     multi-line titles wrap cleanly and downstream layout isn't
+     disturbed. Inherits color/text treatment from the variant-
+     specific ${prefix}__title rule. */
+  display: block;
   color: inherit;
   text-decoration: none;
-  display: block;
+  cursor: pointer;
 }
-.post-link__overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  /* Invisible but focusable + clickable */
-  text-indent: -9999px;
-  overflow: hidden;
-  color: inherit;
-}
-.post-link__overlay:focus-visible {
+/* Per-variant card rules (e.g. .gaz-story:hover .gaz-story__title)
+   already underline the title when the user hovers the card, so we
+   don't add a second :hover rule here. Focus ring stays, for
+   keyboard users. */
+.post-title-link:focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: -2px;
-  text-indent: 0;
-  overflow: visible;
-}
-.post-link :is(a, button) {
-  position: relative;
-  z-index: 2;
+  outline-offset: 2px;
 }
 /* row--rule removed: rows get natural separators via .row + .row */
 .row--lead { }

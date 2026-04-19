@@ -355,7 +355,7 @@ export default function EditPostPage() {
         onPublish={showPublish ? handlePublish : undefined}
         saving={saving}
         dirty={dirty}
-        previewUrl={`http://localhost:3001/posts/${postId}`}
+        previewUrl={`${process.env.NEXT_PUBLIC_WEB_APP_URL || "http://localhost:3001"}/preview/posts/${postId}`}
       />
 
       <div className="editor-broadsheet flex-1 overflow-y-auto">

@@ -18,6 +18,12 @@ type Query {
 
   # Posts (admin)
   post(id: ID!): Post
+  """
+  Admin-only preview of a post at any status. Mirrors editionPreview.
+  Returns UNAUTHENTICATED for non-admins so the web-app preview route
+  can distinguish "you need to log in" from "post not found."
+  """
+  postPreview(id: ID!): Post
   posts(
     status: String
     search: String

@@ -17,6 +17,7 @@ import { getRowLayout, distributeSlots } from '@/lib/broadsheet/row-map';
 import { resolveTemplate } from '@/lib/broadsheet/templates';
 import { resolveWidget } from '@/lib/broadsheet/widget-resolver';
 import { preparePost, type PostTemplateConfigMap } from '@/lib/broadsheet/prepare';
+import { PostDetailLinkProvider } from '@/lib/broadsheet/post-link-context';
 
 type BroadsheetData = NonNullable<PublicBroadsheetQuery['publicBroadsheet']>;
 type BroadsheetRowData = BroadsheetData['rows'][number];
@@ -31,9 +32,16 @@ interface BroadsheetRendererProps {
    * hardcoded duplicate. When omitted, a conservative fallback is used.
    */
   templateConfigs?: PostTemplateConfigMap;
+  /**
+   * When true, post cards (and their "Read more" CTAs) link to the
+   * admin-only /preview/posts/[id] route instead of the public
+   * /posts/[id]. Set by /preview/[editionId] so editors walking a draft
+   * edition can click through to each post's full-detail preview.
+   */
+  previewMode?: boolean;
 }
 
-export function BroadsheetRenderer({ edition, templateConfigs }: BroadsheetRendererProps) {
+export function BroadsheetRenderer({ edition, templateConfigs, previewMode }: BroadsheetRendererProps) {
   // Render ALL rows in sort_order — flat, no section grouping.
   // Sections are kept as advisory metadata for the admin editor but
   // don't affect public rendering. Visual breaks come from SectionSep
@@ -65,7 +73,12 @@ export function BroadsheetRenderer({ edition, templateConfigs }: BroadsheetRende
 
       {/* All rows in sort_order — widgets and posts interleaved */}
       {rows.map((row, idx) => (
-        <BroadsheetRow key={`row-${idx}`} row={row} templateConfigs={templateConfigs} />
+        <BroadsheetRow
+          key={`row-${idx}`}
+          row={row}
+          templateConfigs={templateConfigs}
+          previewMode={previewMode}
+        />
       ))}
     </NewspaperFrame>
   );
@@ -75,7 +88,15 @@ export function BroadsheetRenderer({ edition, templateConfigs }: BroadsheetRende
 // Row renderer
 // =============================================================================
 
-function BroadsheetRow({ row, templateConfigs }: { row: BroadsheetRowData; templateConfigs?: PostTemplateConfigMap }) {
+function BroadsheetRow({
+  row,
+  templateConfigs,
+  previewMode,
+}: {
+  row: BroadsheetRowData;
+  templateConfigs?: PostTemplateConfigMap;
+  previewMode?: boolean;
+}) {
   // Widget-standalone rows render the widget directly without Row/Cell wrapper
   if (row.layoutVariant === 'widget-standalone') {
     const widgetSlot = row.slots.find((s) => s.kind === 'widget');
@@ -121,6 +142,7 @@ function BroadsheetRow({ row, templateConfigs }: { row: BroadsheetRowData; templ
               slot={slot}
               isAnchor={cellIdx === 0 && slots.length === 1}
               templateConfigs={templateConfigs}
+              previewMode={previewMode}
             />
           ))}
         </Cell>
@@ -137,10 +159,12 @@ function SlotRenderer({
   slot,
   isAnchor,
   templateConfigs,
+  previewMode,
 }: {
   slot: BroadsheetSlotData;
   isAnchor?: boolean;
   templateConfigs?: PostTemplateConfigMap;
+  previewMode?: boolean;
 }) {
   if (slot.kind === 'widget' && slot.widget) {
     return <WidgetRenderer widget={slot.widget} widgetTemplate={slot.widgetTemplate ?? undefined} />;
@@ -151,20 +175,20 @@ function SlotRenderer({
   const Component = resolveTemplate(slot.postTemplate, slot.post.postType);
   const post = preparePost(slot.post, slot.postTemplate, isAnchor, templateConfigs);
 
-  // "Linked card" pattern: the whole card is clickable to the post detail page,
-  // but inner interactive elements (CTA buttons, external links in references)
-  // keep their own behavior. A spanning overlay <a> creates the card-click
-  // target; CSS lifts inner <a>/<button> above it so they take precedence.
-  // This avoids nested-anchor HTML which is invalid and breaks hydration.
+  // The card's title is the clickable affordance for the detail page.
+  // In preview mode it links to /preview/posts/[id] so editors walking
+  // a draft edition can click through to each post's full preview;
+  // otherwise, the public /posts/[id] route. The href travels via
+  // React context so MTitle can read it without every post card
+  // component having to plumb a new prop.
+  const detailHref = previewMode
+    ? `/preview/posts/${slot.post.id}`
+    : `/posts/${slot.post.id}`;
+
   return (
-    <div className="post-link">
-      <a
-        href={`/posts/${slot.post.id}`}
-        className="post-link__overlay"
-        aria-label={`Read: ${slot.post.title}`}
-      />
+    <PostDetailLinkProvider value={detailHref}>
       <Component data={post} />
-    </div>
+    </PostDetailLinkProvider>
   );
 }
 

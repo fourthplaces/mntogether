@@ -6,6 +6,7 @@
 
 import type { CSSProperties } from 'react';
 import type { PostItem } from './types';
+import { usePostDetailLink } from './post-link-context';
 
 // ── Pencil mark wrapper ─────────────────────────
 // Editorial emphasis overlay applied to a specific text element (title,
@@ -79,14 +80,27 @@ export function MTitle({ text, prefix, extra, pencilMark }: MTitleProps) {
   const className = `${prefix}__title${extra ? ' ' + extra : ''}`;
   // 'circle' is only for date elements in event cards, never titles.
   const titleMark = pencilMark === 'circle' ? undefined : pencilMark;
+
+  // When the card is inside a PostDetailLinkProvider (i.e. rendered by
+  // BroadsheetRenderer's SlotRenderer), the title becomes a link to the
+  // post detail page — public in normal mode, /preview/posts/[id] in
+  // broadsheet preview mode. Outside that context (the detail page
+  // renders its own title via TitleA/TitleB, not MTitle), this falls
+  // back to a plain <div> so we don't self-link inside a post page.
+  const detailHref = usePostDetailLink();
+  const Tag = detailHref ? 'a' : 'div';
+  const linkProps = detailHref
+    ? { href: detailHref, className: `${className} post-title-link` }
+    : { className };
+
   if (titleMark) {
     return (
-      <div className={className}>
+      <Tag {...linkProps}>
         <Pencil mark={titleMark} text={text} />
-      </div>
+      </Tag>
     );
   }
-  return <div className={className} dangerouslySetInnerHTML={{ __html: text }} />;
+  return <Tag {...linkProps} dangerouslySetInnerHTML={{ __html: text }} />;
 }
 
 // ── Meta ────────────────────────────────────────
@@ -143,11 +157,28 @@ interface MReadMoreProps {
 }
 
 export function MReadMore({ href, text }: MReadMoreProps) {
-  return (
-    <span className="read-more mono-sm">
+  // Renders as a real <a> when we have a destination (the external
+  // source URL, typically — see prepare.ts). The caller used to pass
+  // href but this component ignored it and rendered as a plain span,
+  // which meant "Read full story →" never navigated anywhere.
+  const label = (
+    <>
       {text || 'Read more'} &rarr;
-    </span>
+    </>
   );
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="read-more mono-sm"
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span className="read-more mono-sm">{label}</span>;
 }
 
 // ── Contact ─────────────────────────────────────

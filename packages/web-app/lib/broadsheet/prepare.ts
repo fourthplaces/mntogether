@@ -189,6 +189,10 @@ export function preparePost(
     dropCap: isFeature,
     clamp: (isFeature || isAnchor) ? 0 : clamp,
     tagLabel,
+    // readMore is the external source URL (e.g. the original newspaper
+    // article). Internal navigation to the post detail page is handled
+    // by the title link, not readMore — those are semantically distinct
+    // destinations.
     readMore: gqlPost.sourceUrl || undefined,
     compact,
     deck: meta?.deck,

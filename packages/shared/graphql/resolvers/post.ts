@@ -40,6 +40,19 @@ export const postResolvers = {
       return ctx.loaders.postById.load(args.id);
     },
 
+    postPreview: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      // Hits /Post/{id}/preview which requires AdminUser on the Rust
+      // side, returning 401 for non-admins. The web-app preview page
+      // catches that as an UNAUTHENTICATED GraphQL error and shows an
+      // "Admin Access Required" banner rather than a generic
+      // "post not found."
+      return ctx.server.callService("Post", `${args.id}/preview`, {});
+    },
+
     posts: async (
       _parent: unknown,
       args: {

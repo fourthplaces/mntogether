@@ -11,7 +11,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
 import Link from "next/link";
 import { POST_TYPES, WEIGHTS } from "@/lib/post-form-constants";
 import { PencilMarkPicker } from "./PencilMarkPicker";
@@ -131,6 +131,49 @@ function formatRelativeDate(dateString: string): { short: string; full: string }
   return { short, full };
 }
 
+/**
+ * "View" button next to the hero's top-right actions.
+ *
+ * Routes to either the public post URL or the admin preview URL:
+ *   - Post is `active` AND at least one of its slotted editions is
+ *     `published`        →  /posts/[id] (public)
+ *   - Anything else       →  /preview/posts/[id] (admin-gated, any status)
+ *
+ * The button is always shown regardless of status so editors can get
+ * to a preview of drafts, pending_approval posts, etc. — the old
+ * behavior hid it for non-active statuses, which is exactly when the
+ * preview is most useful.
+ */
+function PublicOrPreviewLink({ post }: { post: HeroPost }) {
+  const WEB_APP_URL =
+    process.env.NEXT_PUBLIC_WEB_APP_URL || "http://localhost:3001";
+
+  const hasPublishedSlot = (post.editionSlottings ?? []).some(
+    (s) => s.editionStatus === "published",
+  );
+  const isPubliclyVisible = post.status === "active" && hasPublishedSlot;
+
+  const href = isPubliclyVisible
+    ? `${WEB_APP_URL}/posts/${post.id}`
+    : `${WEB_APP_URL}/preview/posts/${post.id}`;
+
+  const title = isPubliclyVisible ? "View public page" : "Preview (admin only)";
+  const Icon = isPubliclyVisible ? ExternalLink : Eye;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
+      title={title}
+      aria-label={title}
+    >
+      <Icon className="w-4 h-4" />
+    </a>
+  );
+}
+
 export function PostDetailHero({
   post,
   actionInProgress,
@@ -163,15 +206,7 @@ export function PostDetailHero({
             <ArrowLeft className="w-4 h-4 mr-1" /> Back to Posts
           </Link>
           <div className="flex items-center gap-2">
-            {post.status === "active" && (
-              <Link
-                href={`/posts/${post.id}`}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
-                title="View public page"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Link>
-            )}
+            <PublicOrPreviewLink post={post} />
             <Button
               variant="destructive"
               size="sm"

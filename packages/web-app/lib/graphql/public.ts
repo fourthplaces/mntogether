@@ -87,6 +87,18 @@ export const PostDetailPublicQuery = graphql(`
   }
 `);
 
+/** Admin-gated preview of a post at any status. Mirrors editionPreview.
+ *  The resolver calls /Post/{id}/preview which enforces AdminUser, so
+ *  non-admins get an UNAUTHENTICATED GraphQL error that the preview
+ *  page surfaces as "Admin Access Required" — not a misleading 404. */
+export const PostPreviewQuery = graphql(`
+  query PostPreview($id: ID!) {
+    postPreview(id: $id) {
+      ...PostDetailPublicFields
+    }
+  }
+`);
+
 export const TrackPostViewMutation = graphql(`
   mutation TrackPostView($postId: ID!) {
     trackPostView(postId: $postId)

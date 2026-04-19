@@ -1558,6 +1558,29 @@ async fn get_post(
         .map(Json)
 }
 
+/// Preview endpoint — admin-only view of a post at any status. Mirrors
+/// the `/Editions/preview_broadsheet` pattern: returning 401 here is the
+/// signal the web-app uses to show its "Admin Access Required" banner
+/// instead of a misleading "Post not found".
+///
+/// Unlike `get_post` (OptionalUser, public-visible for active posts),
+/// this endpoint always includes private fields so the preview matches
+/// what the admin authored.
+async fn preview_post(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+) -> ApiResult<Json<PostResult>> {
+    // Still 404 if the post genuinely doesn't exist.
+    let _post = Post::find_by_id(PostId::from_uuid(post_id), &state.deps.db_pool)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Post not found".into()))?;
+
+    build_post_result(post_id, /* include_private */ true, &state.deps)
+        .await
+        .map(Json)
+}
+
 async fn get_related_posts(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2429,6 +2452,7 @@ pub fn router() -> Router<AppState> {
         .route("/Posts/create_post", post(create_post))
         // --- Post object (keyed, singular) ---
         .route("/Post/{id}/get", post(get_post))
+        .route("/Post/{id}/preview", post(preview_post))
         .route("/Post/{id}/approve", post(approve))
         .route("/Post/{id}/edit_and_approve", post(edit_and_approve))
         .route("/Post/{id}/reject", post(reject))

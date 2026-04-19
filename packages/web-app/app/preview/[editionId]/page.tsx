@@ -117,7 +117,7 @@ export default function PreviewPage() {
           </button>
         </div>
       </div>
-      <BroadsheetRenderer edition={edition} templateConfigs={templateConfigs} />
+      <BroadsheetRenderer edition={edition} templateConfigs={templateConfigs} previewMode />
       <SiteFooter />
     </div>
   );
