@@ -448,10 +448,14 @@ export default function EditionDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          {/* Header card with tabs at bottom edge */}
-          <div className="bg-card border-b border-border px-6 pt-5 pb-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {/* Full-width white header band — background runs edge-to-edge
+         * while the inner content column stays aligned with the body
+         * below (same max-w-6xl / mx-auto treatment). Previously the
+         * bg-card lived inside the max-w-6xl column, so the white
+         * band looked visually detached from the page edges. */}
+        <div className="bg-card border-b border-border">
+          <div className="max-w-6xl mx-auto px-6 pt-5 pb-0">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start gap-3">
                 <Button
@@ -524,7 +528,11 @@ export default function EditionDetailPage() {
               <TabsTrigger value="widgets">Widgets</TabsTrigger>
             </TabsList>
           </div>
+        </div>
 
+        {/* Body — constrained column, same max-w as the header's inner
+         * column so content aligns along both left and right edges. */}
+        <div className="max-w-6xl mx-auto">
           {actionError && (
             <Alert variant="error" className="mx-6 mt-4">
               <AlertDescription>{actionError}</AlertDescription>
@@ -556,10 +564,9 @@ export default function EditionDetailPage() {
             <TabsContent value="widgets">
               <EditionWidgetsView editionId={edition.id} />
             </TabsContent>
-
           </div>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 }
@@ -825,9 +832,40 @@ function BroadsheetEditor({
     const pointer = pointerWithin(args);
     let hits = pointer.length > 0 ? pointer : rectIntersection(args);
     if (hits.length === 0) hits = closestCorners(args);
-    const cards = hits.filter((c) => !String(c.id).startsWith("drop-") && c.id !== "remove-zone");
-    const cells = hits.filter((c) => String(c.id).startsWith("drop-"));
-    const removes = hits.filter((c) => c.id === "remove-zone");
+
+    // Classify each hit by looking up the registered droppable's data.
+    // Cell drop zones use ids prefixed with "drop-"; slot cards register
+    // with data.type = 'slot'; row and section sortables register with
+    // data.type = 'row' / 'section' and their ids are the row/section
+    // UUIDs — which, without filtering, would be treated as "cards"
+    // here (they don't start with "drop-"), get ranked above the cell,
+    // and silently hijack the drop target. The layout editor bug was:
+    // drags into empty cells landed on the enclosing row UUID,
+    // resolved to no container in computeSlotOrderAfterMove, and
+    // no-oped. `args.droppableContainers` is array-like (not a Map),
+    // so we iterate once to build an id → data lookup.
+    const dataById = new Map<string | number, Record<string, unknown> | undefined>();
+    for (const container of args.droppableContainers) {
+      dataById.set(container.id, container.data?.current);
+    }
+    const cells: typeof hits = [];
+    const cards: typeof hits = [];
+    const removes: typeof hits = [];
+    for (const c of hits) {
+      const idStr = String(c.id);
+      if (idStr === "remove-zone") {
+        removes.push(c);
+        continue;
+      }
+      if (idStr.startsWith("drop-")) {
+        cells.push(c);
+        continue;
+      }
+      if (dataById.get(c.id)?.type === "slot") {
+        cards.push(c);
+      }
+      // otherwise: a row or section container — ignore for slot drags.
+    }
     return [...cards, ...cells, ...removes];
   }, []);
 
