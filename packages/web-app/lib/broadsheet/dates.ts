@@ -94,9 +94,31 @@ export function formatPostDate(iso: string): string {
 }
 
 /**
- * For event circle badge on broadsheet cards.
- * "Today!" · "Tomorrow" · "Sat" · "Mar 15"
+ * For event circle badge on broadsheet cards — a short handwritten
+ * annotation rendered next to the pencil-circled date. The date circle
+ * already shows "APR 10 / THU" with the weekday in small caps, so the
+ * label should NEVER restate the day or date. Use short relational
+ * language that reads as a casual aside ("This weekend", "Next month").
+ *
+ * **Past events drop the label entirely.** Once an event is in the past,
+ * the fresh-ink pencil annotation competes with other, more-current
+ * content — the date circle on its own tells the reader it's behind
+ * them. Only future events get a label.
+ *
+ * Labels are deliberately terse (1–2 words). "This weekend" beats
+ * "Later this weekend"; "This month" beats "Later this month".
+ *
+ * Full label set:
+ *   Today / Tomorrow
+ *   This weekend / This week                 (2–6 days out)
+ *   Next weekend / Next week                 (7–13 days out)
+ *   Two weeks                                (14–20 days out)
+ *   This month / Next month                  (21–60 days out)
+ *   ''                                       (past, or beyond "Next month")
  */
+const WEEKEND_DAYS = new Set(['Saturday', 'Sunday']);
+const WORKWEEK_DAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+
 export function formatEventLabel(iso: string): string {
   const d = parse(iso);
   if (!d) return '';
@@ -105,16 +127,37 @@ export function formatEventLabel(iso: string): string {
   const today = nowMN();
   const diff = diffDays(today, mn); // positive = future
 
-  // Relative labels for the pencil-circle handwritten annotation.
-  // The date circle already shows "APR 10" — the label should add context,
-  // not repeat the date. For far-future dates, return empty (no label).
-  if (diff === 0) return 'Today!';
+  // Past events: strip the annotation entirely. The date circle still
+  // renders the exact date, but the handwritten aside disappears once
+  // the event has come and gone.
+  if (diff < 0) return '';
+
+  if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
-  if (diff === -1) return 'Yesterday';
-  if (diff >= 2 && diff <= 6) return fmtDowShort.format(d);
-  if (diff >= 7 && diff <= 13) return 'Next week';
-  if (diff >= 14 && diff <= 30) return 'This month';
-  return ''; // No label for far-future/past — the date circle is enough
+
+  const targetIsWeekend = WEEKEND_DAYS.has(mn.weekday);
+  const todayIsWorkday = WORKWEEK_DAYS.has(today.weekday);
+
+  // This week (2–6 days out). Call weekends out explicitly when today
+  // is a weekday — "This weekend" is richer than "This week" for a
+  // Sat/Sun target.
+  if (diff <= 6) {
+    if (targetIsWeekend && todayIsWorkday) return 'This weekend';
+    return 'This week';
+  }
+
+  // Next week (7–13 days out).
+  if (diff <= 13) {
+    if (targetIsWeekend) return 'Next weekend';
+    return 'Next week';
+  }
+
+  if (diff <= 20) return 'Two weeks';
+  if (diff <= 30) return 'This month';
+  if (diff <= 60) return 'Next month';
+
+  // Anything further than "Next month" — date circle speaks for itself.
+  return '';
 }
 
 /**
