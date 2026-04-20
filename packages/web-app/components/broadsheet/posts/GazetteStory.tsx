@@ -16,7 +16,7 @@ export function GazetteStory({ data: d }: GazetteStoryProps) {
       <MMeta text={getMetaLine(d)} prefix={c} />
       {d.paragraphs
         ? <MRichBody paragraphs={d.paragraphs} prefix={c} cols={d.cols} dropCap={d.dropCap} />
-        : <MBody text={d.body || ''} prefix={c} />}
+        : <MBody text={d.body || ''} prefix={c} clamp={d.clamp ?? 6} />}
       <MReadMore href={d.readMore || d.link?.url || '#'} text="Read full story" />
     </div>
   );

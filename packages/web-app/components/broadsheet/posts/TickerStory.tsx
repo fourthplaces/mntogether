@@ -1,6 +1,6 @@
 import type { Post } from '@/lib/broadsheet/types';
 import { getMetaLine } from '@/lib/broadsheet/display';
-import { MTag } from '@/lib/broadsheet/molecules';
+import { MTag, MInlineTitle } from '@/lib/broadsheet/molecules';
 
 interface TickerStoryProps {
   data: Post;
@@ -11,7 +11,7 @@ export function TickerStory({ data: d }: TickerStoryProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Story" prefix={c} />
-      <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
+      <MInlineTitle text={d.title} prefix={c} />
       <span className={`${c}__meta mono-sm`}>{getMetaLine(d)}</span>
     </div>
   );

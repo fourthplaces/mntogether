@@ -187,7 +187,13 @@ export function preparePost(
     paragraphs: isFeature ? paragraphs : undefined,
     cols: isFeature && isAnchor && paragraphs.length >= 4 ? 2 : undefined,
     dropCap: isFeature,
-    clamp: (isFeature || isAnchor) ? 0 : clamp,
+    // Features use <MRichBody> (which ignores clamp) so undefined is fine.
+    // Everyone else — including anchor cells — gets the template's configured
+    // clamp value. The old logic set clamp=0 for anchors on the theory that
+    // wider anchor columns "don't need clamping", but 0 isn't a valid CSS
+    // `.clamp-N` class, so anchor bodies rendered un-clamped and overflowed
+    // their cells (visible on alert-urgent, gaz-story, gaz-request).
+    clamp: isFeature ? undefined : clamp,
     tagLabel,
     // readMore is the external source URL (e.g. the original newspaper
     // article). Internal navigation to the post detail page is handled

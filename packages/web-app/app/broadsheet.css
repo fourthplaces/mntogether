@@ -220,6 +220,21 @@ body:has(.broadsheet-page) {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }
+
+/* Whole-tile click affordance. Wraps every post card rendered by the
+   broadsheet's SlotRenderer. The JS click handler (BroadsheetRenderer's
+   ClickableTile) deals with bailing out on interactive targets and
+   active text selections; CSS here is just the cursor cue.
+
+   We intentionally don't style :hover on the wrapper — each card
+   template already has its own .variant:hover rules (background tint,
+   title underline) that fire on the inner element; hovering the wrapper
+   also hovers the inner, so those trigger naturally. Adding a wrapper-
+   level hover would stack with them and look heavy. */
+.post-tile-clickable {
+  cursor: pointer;
+}
+
 /* row--rule removed: rows get natural separators via .row + .row */
 .row--lead { }
 .row--lead-stack { }

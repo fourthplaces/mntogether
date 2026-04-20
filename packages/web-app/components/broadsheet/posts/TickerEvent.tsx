@@ -1,5 +1,5 @@
 import type { Post } from '@/lib/broadsheet/types';
-import { MTag } from '@/lib/broadsheet/molecules';
+import { MTag, MInlineTitle } from '@/lib/broadsheet/molecules';
 
 interface TickerEventProps {
   data: Post;
@@ -20,7 +20,7 @@ export function TickerEvent({ data: d }: TickerEventProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Event" prefix={c} />
-      <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
+      <MInlineTitle text={d.title} prefix={c} />
       {meta && <span className={`${c}__meta mono-sm`}>{meta}</span>}
     </div>
   );

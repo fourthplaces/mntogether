@@ -103,6 +103,31 @@ export function MTitle({ text, prefix, extra, pencilMark }: MTitleProps) {
   return <Tag {...linkProps} dangerouslySetInnerHTML={{ __html: text }} />;
 }
 
+// ── InlineTitle ─────────────────────────────────
+// Span-based sibling of MTitle for the ticker-family templates, whose
+// card layout is inline-flow (tag · title · meta on a single line).
+// Renders as <a> when inside a PostDetailLinkProvider (matching MTitle's
+// link behavior), otherwise as a plain <span> so it stays inline.
+interface MInlineTitleProps {
+  text: string;
+  prefix: string;
+}
+
+export function MInlineTitle({ text, prefix }: MInlineTitleProps) {
+  const className = `${prefix}__title`;
+  const detailHref = usePostDetailLink();
+  if (detailHref) {
+    return (
+      <a
+        href={detailHref}
+        className={`${className} post-title-link`}
+        dangerouslySetInnerHTML={{ __html: text }}
+      />
+    );
+  }
+  return <span className={className} dangerouslySetInnerHTML={{ __html: text }} />;
+}
+
 // ── Meta ────────────────────────────────────────
 interface MMetaProps {
   text: string;

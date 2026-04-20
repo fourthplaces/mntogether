@@ -1,5 +1,6 @@
 import type { Post } from '@/lib/broadsheet/types';
 import { getMetaLine } from '@/lib/broadsheet/display';
+import { MTitle } from '@/lib/broadsheet/molecules';
 
 interface FeatureHeroProps {
   data: Post;
@@ -15,7 +16,7 @@ export function FeatureHero({ data: d }: FeatureHeroProps) {
       />
       <div className={`${c}__content`}>
         {d.meta?.kicker && <div className={`${c}__kicker`}>{d.meta.kicker}</div>}
-        <div className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         {d.deck && <div className={`${c}__deck`}>{d.deck}</div>}
         <div className={`${c}__meta mono-sm`}>{getMetaLine(d)}</div>
       </div>

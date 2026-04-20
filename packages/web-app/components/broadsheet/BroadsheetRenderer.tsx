@@ -12,6 +12,8 @@
  */
 
 import type { PublicBroadsheetQuery } from '@/gql/graphql';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { Row, Cell, NewspaperFrame, DebugLabels } from '@/components/broadsheet';
 import { getRowLayout, distributeSlots } from '@/lib/broadsheet/row-map';
 import { resolveTemplate } from '@/lib/broadsheet/templates';
@@ -187,8 +189,64 @@ function SlotRenderer({
 
   return (
     <PostDetailLinkProvider value={detailHref}>
-      <Component data={post} />
+      <ClickableTile href={detailHref}>
+        <Component data={post} />
+      </ClickableTile>
     </PostDetailLinkProvider>
+  );
+}
+
+// =============================================================================
+// ClickableTile — whole-tile click affordance
+// =============================================================================
+//
+// Makes the entire post card clickable without breaking:
+//   - native links/buttons inside the card (title anchor, Read more, contacts)
+//   - text selection (click-and-drag to select body text)
+//   - CSS :hover states (background tint, title underline)
+//
+// Approach: plain <div> onClick handler that bails out if
+//   (a) the click originated on a real interactive element — let that
+//       element's native behavior win; we don't double-navigate.
+//   (b) the user has text selected — they were dragging, not clicking.
+// Otherwise, programmatic router.push() to the detail page.
+//
+// Why not an absolute-positioned <a> overlay (the previous approach)?
+// Overlays capture pointer events, which kills native text selection and
+// defeats nested link hover states via CSS specificity. onClick bubbles
+// naturally — selection and inner links "just work".
+//
+// Why not <Link> wrapping? HTML forbids <a> inside <a>, and the card's
+// title is already rendered as an <a> via MTitle + PostDetailLinkProvider.
+// Nesting would produce invalid markup.
+
+const INTERACTIVE_SELECTOR = 'a, button, [role="button"], input, textarea, select, label';
+
+function ClickableTile({ href, children }: { href: string; children: ReactNode }) {
+  const router = useRouter();
+
+  const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    // Let native interactive elements handle their own click.
+    const target = e.target as HTMLElement | null;
+    if (target?.closest(INTERACTIVE_SELECTOR)) return;
+
+    // If the user selected any text during this click, treat it as a drag
+    // (text selection), not a navigation intent.
+    if (typeof window !== 'undefined' && window.getSelection()?.toString()) return;
+
+    // Only handle plain left-clicks. Let cmd/ctrl/shift/middle-click be
+    // picked up by the title's <a> via `target?.closest`… but since we're
+    // here the target wasn't interactive, so those modifiers just do
+    // nothing (no "open in new tab" from a non-link). Acceptable.
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+    router.push(href);
+  };
+
+  return (
+    <div className="post-tile-clickable" onClick={onClick}>
+      {children}
+    </div>
   );
 }
 
