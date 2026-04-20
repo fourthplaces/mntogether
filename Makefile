@@ -11,7 +11,7 @@
 #   make restart  - Restart all services
 # ============================================================================
 
-.PHONY: help up down logs restart restart-server restart-admin restart-minio clean build migrate seed seed-media-upload shell db-shell test check
+.PHONY: help up down logs restart restart-server restart-admin restart-minio clean build migrate seed seed-media-upload audit-seed audit-seed-rebaseline shell db-shell test check
 
 # Default target - show help
 help:
@@ -146,6 +146,19 @@ seed-media-upload:
 # emitted media rows reference files that actually exist in MinIO.
 seed: seed-media-upload
 	@node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
+
+# Audit seed data against the Root Signal data contract.
+# Prints gap report + writes machine-readable data/audit-seed.out.json.
+# Exits non-zero if any gap category regressed vs the committed baseline
+# (data/audit-seed.baseline.json) — use this as a pre-commit sanity check
+# when touching data/posts.json.
+audit-seed:
+	@node data/audit-seed.mjs --check
+
+# Lock in the current seed state as the new baseline. Run after finishing
+# an enrichment pass (see docs/guides/SEED_DATA_ENRICHMENT_PLAN.md).
+audit-seed-rebaseline:
+	@node data/audit-seed.mjs --rebaseline
 
 # Open PostgreSQL shell
 db-shell:

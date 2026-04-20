@@ -264,6 +264,35 @@ for (const p of posts) {
     return a;
   };
 
+  // --- organizationName convenience field ----------------------------------
+  // When a post declares `organizationName`, auto-fill sourceAttribution.
+  // sourceName so the later post_sources→sources→organizations join
+  // reliably wires the post to its org. Callers may still pass
+  // sourceAttribution explicitly; this only fills in the gap.
+  //
+  // If the named org isn't in organizations.json we fail loudly rather
+  // than silently orphan the post — orgless posts are fine but they
+  // should omit organizationName entirely rather than cite a phantom.
+  if (p.organizationName) {
+    const knownOrg = orgEntries.find(
+      (o) => (o.name || o.organization) === p.organizationName
+    );
+    if (!knownOrg) {
+      throw new Error(
+        `Post "${p.title}" references unknown organizationName "${p.organizationName}". ` +
+          `Add the org to data/organizations.json or remove the reference.`
+      );
+    }
+    if (!p.sourceAttribution) {
+      p.sourceAttribution = {
+        sourceName: p.organizationName,
+        attribution: p.sourceAttribution?.attribution || null,
+      };
+    } else if (!p.sourceAttribution.sourceName) {
+      p.sourceAttribution.sourceName = p.organizationName;
+    }
+  }
+
   // --- post_meta -----------------------------------------------------------
   if (p.meta) {
     const a = nextAlias("meta");
@@ -395,6 +424,36 @@ for (const p of posts) {
     out(`    ON CONFLICT (post_id) DO NOTHING`);
     out(`)`);
     lastAlias = a;
+  }
+
+  // --- contacts (polymorphic; post_contacts was merged in migration 120) ---
+  // Per-post contacts (phone / email / website / address). Seeded as a
+  // flat array on the post JSON:
+  //
+  //   "contacts": [
+  //     { "type": "phone",   "value": "651-555-0123", "label": "Main line" },
+  //     { "type": "website", "value": "https://…",    "label": "Hours" }
+  //   ]
+  //
+  // The table is the polymorphic `contacts` table with contactable_type='post'
+  // — the original per-post `post_contacts` table was rolled up into it in
+  // migration 000120. Insert type/value/label + display_order; ON CONFLICT
+  // matches the (type, id, contact_type, value) unique key.
+  if (p.contacts && p.contacts.length > 0) {
+    for (let ci = 0; ci < p.contacts.length; ci++) {
+      const c = p.contacts[ci];
+      const a = nextAlias("contact");
+      out(`, ${a} AS (`);
+      out(
+        `    INSERT INTO contacts (contactable_type, contactable_id, contact_type, contact_value, contact_label, display_order, is_public)`
+      );
+      out(
+        `    SELECT 'post', id, ${esc(c.type)}, ${esc(c.value)}, ${esc(c.label || null)}, ${ci}, ${c.is_public === false ? "false" : "true"} FROM post`
+      );
+      out(`    ON CONFLICT DO NOTHING`);
+      out(`)`);
+      lastAlias = a;
+    }
   }
 
   // --- post_media ----------------------------------------------------------

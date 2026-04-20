@@ -56,10 +56,10 @@ The full machine-readable report is at `data/audit-seed.out.json` and is regener
 
 Before enriching content, the seed script itself needs to cover field groups it currently ignores:
 
-- **`post_contacts`** — seed.mjs does not emit rows. Add a handler that reads a `contacts: [{type, value, label}]` array from post JSON.
-- **`posts.organization_id`** — set directly from post JSON (`organizationName` lookup) rather than the roundabout `post_source_attribution → organizations → sources → post_sources` join.
+- **`post_contacts`** — seed.mjs does not emit rows. Add a handler that reads a `contacts: [{type, value, label}]` array from post JSON. ✅ *Shipped*.
+- **Organization linking** — add an `organizationName` convenience field. When set, seed.mjs auto-fills `sourceAttribution.sourceName` (if not already set) so the existing `post_sources → sources → organizations` join reliably wires the link. Throws on unknown org names. ✅ *Shipped*. (A direct `posts.organization_id` FK was considered but dropped — migration 122 removed it intentionally; keeping the source-graph join preserves multi-source post support.)
 - **Individual sources (`source_individuals`)** — table doesn't exist yet. Add migration + seed handler. Deferred to its own sub-step so we can land Passes 1–3 independently.
-- **Validator** — extend `data/audit-seed.mjs` to run as part of `make seed` and fail loudly if gap count regresses.
+- **Validator** — `data/audit-seed.mjs --check` with committed baseline; `make audit-seed` wraps it. ✅ *Shipped*.
 
 ### Pass 1 — Body tiers (fixes ~140 gaps)
 
@@ -127,6 +127,8 @@ Quality bar per body:
 
 No fake quotes. If a story needs a quote to feel real, mark the byline as "Root Editorial Staff" and attribute the quote to a named role ("a county spokesperson said"), not a fabricated individual.
 
+**Do NOT embed specific calendar dates in titles or body text.** Seed dates are all `NOW()`-relative via `offsetDays`, so a title like "Scheduled for April 3–5" drifts out of sync whenever the seed runs on a different day. Use the `datetime` / `schedule` field groups for actual dates — the detail page renders them accurately from the DB. In prose, use duration language ("three-day closure", "this weekend", "the next two Saturdays") or weekday references relative to the event's weekday, which stay accurate. The Highway 169 pilot got this wrong on first pass and was corrected; don't propagate the mistake.
+
 ---
 
 ## Pass 2 deliverables
@@ -179,11 +181,11 @@ No fake quotes. If a story needs a quote to feel real, mark the byline as "Root 
 }
 ```
 
-**After** (target shape):
+**After** (target shape — dates are duration-relative, not calendar-specific, per the rule above):
 
 ```json
 {
-  "title": "Highway 169 Bridge Deck Work Scheduled for April 3–5",
+  "title": "Highway 169 Bridge Deck Work — Three-Day Lane Closure Near Aitkin",
   "postType": "update",
   "weight": "light",
   "priority": 50,
@@ -193,10 +195,10 @@ No fake quotes. If a story needs a quote to feel real, mark the byline as "Root 
   "location": "Aitkin, MN",
   "tags": { "topic": ["transit", "public-works"], "serviceArea": ["aitkin-county"] },
 
-  "bodyLight": "MnDOT closes one lane of Hwy 169 at the Mississippi crossing April 3–5 for deck repairs.",
-  "bodyMedium": "MnDOT will close one lane of Highway 169 at the Mississippi River crossing near Aitkin from April 3 through April 5 for scheduled bridge-deck repairs. Expect delays of 10–15 minutes, especially at peak commute times. Emergency vehicles retain priority access; the project page lists hour-by-hour closure details and a live detour map.",
-  "bodyHeavy": "The Minnesota Department of Transportation will close one lane of Highway 169 at the Mississippi River crossing near Aitkin from April 3 through April 5 to complete scheduled bridge-deck repairs. Single-lane traffic will run through the open lane with flagging crews directing alternating flow.\n\nMnDOT District 1 says the three-day window is the last scheduled closure of the spring season and allows the department to complete repairs ahead of the summer tourism traffic increase. Drivers should expect 10–15 minute delays at peak times (7–9 a.m. and 4–6 p.m.) and consider using County Road 12 as a detour for non-emergency trips.\n\nResidents can follow live road conditions and hour-by-hour closure updates on 511mn.org. Emergency vehicles retain priority access through the work zone at all times. The department asks drivers to slow down through the construction zone and watch for workers.",
-  "bodyRaw": "<same as bodyHeavy>",
+  "organizationName": "Minnesota Department of Transportation",
+  "bodyLight": "MnDOT closes one lane of Hwy 169 at the Mississippi crossing for three days of deck repairs.",
+  "bodyMedium": "MnDOT will close one lane of Highway 169 at the Mississippi River crossing near Aitkin for three days of scheduled bridge-deck repairs. Expect 10–15 minute delays at peak commute times. The project page lists hour-by-hour closure details and a live detour map; emergency vehicles retain priority access throughout the work zone.",
+  "bodyHeavy": "The Minnesota Department of Transportation will close one lane of Highway 169 at the Mississippi River crossing near Aitkin for a three-day window to complete scheduled bridge-deck repairs. Single-lane traffic will run through the open lane with flagging crews directing alternating flow.\n\nMnDOT District 1 says the closure is the last scheduled bridge window of the spring season and allows the department to finish repairs ahead of the summer tourism traffic increase. Drivers should expect 10–15 minute delays at peak times (7–9 a.m. and 4–6 p.m.) and consider using County Road 12 as a detour for non-emergency trips.\n\nResidents can follow live road conditions and hour-by-hour closure updates on 511mn.org. Emergency vehicles retain priority access through the work zone at all times. The department asks drivers to slow down through the construction zone and watch for workers on foot near the barriers.",
 
   "meta": {
     "kicker": "Roads",
@@ -204,11 +206,9 @@ No fake quotes. If a story needs a quote to feel real, mark the byline as "Root 
     "timestampOffsetDays": -1
   },
 
-  "organizationName": "Minnesota Department of Transportation",
   "sourceAttribution": {
     "sourceName": "Minnesota Department of Transportation",
-    "attribution": "MnDOT District 1 press release, April 2",
-    "sourceUrl": "https://www.dot.state.mn.us/d1/projects/hwy169bridge/"
+    "attribution": "MnDOT District 1 press release"
   },
 
   "datetime": {
@@ -225,12 +225,12 @@ No fake quotes. If a story needs a quote to feel real, mark the byline as "Root 
 
   "link": {
     "label": "View project details",
-    "url": "https://www.dot.state.mn.us/d1/projects/hwy169bridge/"
+    "url": "https://www.dot.state.mn.us/d1/projects/"
   }
 }
 ```
 
-Gaps closed: 7. Detail page goes from one sentence to a full article with a right-sidebar schedule, contacts, and source attribution.
+Gaps closed: 7. Detail page goes from one sentence to a full article with a right-sidebar schedule (rendered from the `datetime` field group, always accurate), contacts, and source attribution.
 
 ---
 

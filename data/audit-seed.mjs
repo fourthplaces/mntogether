@@ -11,15 +11,25 @@
  * docs/architecture/ROOT_SIGNAL_DATA_CONTRACT.md. Keep them in sync when the
  * contract moves.
  *
+ * Flags:
+ *   --check     Exit 1 if any gap category regressed vs data/audit-seed.baseline.json.
+ *               Used by `make audit-seed` in CI/hook contexts.
+ *   --rebaseline
+ *               Overwrite data/audit-seed.baseline.json with the current run.
+ *               Use after finishing a pass to lock in the new floor.
+ *
  * Usage:
- *   node data/audit-seed.mjs
+ *   node data/audit-seed.mjs              # print + write out.json
+ *   node data/audit-seed.mjs --check      # above, plus exit 1 if regressed
+ *   node data/audit-seed.mjs --rebaseline # above, plus update baseline
  */
 
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const flags = new Set(process.argv.slice(2));
 
 const rawPosts = JSON.parse(readFileSync(join(__dirname, "posts.json"), "utf8"));
 const posts = rawPosts.filter((p) => !p._comment);
@@ -209,3 +219,45 @@ writeFileSync(
 );
 console.log(``);
 console.log(`Machine-readable report: data/audit-seed.out.json`);
+
+// ─── Regression check / rebaseline ────────────────────────────────────────────
+const baselinePath = join(__dirname, "audit-seed.baseline.json");
+
+if (flags.has("--rebaseline")) {
+  writeFileSync(baselinePath, JSON.stringify(report, null, 2));
+  console.log(``);
+  console.log(`Baseline updated: ${baselinePath}`);
+}
+
+if (flags.has("--check")) {
+  if (!existsSync(baselinePath)) {
+    console.error(`\nNo baseline at ${baselinePath}. Run with --rebaseline first.`);
+    process.exit(2);
+  }
+  const baseline = JSON.parse(readFileSync(baselinePath, "utf8"));
+  const regressions = [];
+  const allKeys = new Set([
+    ...Object.keys(report.gapCounts),
+    ...Object.keys(baseline.gapCounts),
+  ]);
+  for (const key of allKeys) {
+    const now = report.gapCounts[key] ?? 0;
+    const then = baseline.gapCounts[key] ?? 0;
+    if (now > then) regressions.push({ key, then, now, delta: now - then });
+  }
+  if (regressions.length > 0) {
+    console.error(``);
+    console.error(`REGRESSION: gap counts increased vs baseline`);
+    for (const r of regressions) {
+      console.error(`  +${r.delta}  ${r.key}  (was ${r.then}, now ${r.now})`);
+    }
+    console.error(``);
+    console.error(`If this is intentional progress (e.g. you added more posts and`);
+    console.error(`some new gaps are expected), re-run with --rebaseline to lock`);
+    console.error(`in the new floor.`);
+    process.exit(1);
+  } else {
+    console.log(``);
+    console.log(`Check: no regressions vs baseline ✓`);
+  }
+}

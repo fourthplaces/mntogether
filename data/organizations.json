@@ -1,6 +1,32 @@
 {
   "organizations": [
     {
+      "name": "Wilder Foundation",
+      "website": "https://www.wilder.org/",
+      "phone": "651-280-2000",
+      "address": "451 Lexington Pkwy N, Saint Paul, MN 55104",
+      "populations_served": "Statewide research, housing, aging, mental-health, and community programs. Wilder Research is the MN lead on the Point-in-Time homelessness count and publishes analysis on many health and equity topics.",
+      "county": "Ramsey",
+      "employees": null,
+      "year_founded": 1906,
+      "volunteers_needed": true,
+      "ice_resistance_focus": false,
+      "sources": "https://www.wilder.org/ ; https://www.wilderresearch.org/"
+    },
+    {
+      "name": "Minnesota Department of Transportation",
+      "website": "https://www.dot.state.mn.us/",
+      "phone": "651-296-3000",
+      "address": "395 John Ireland Blvd, St. Paul, MN 55155",
+      "populations_served": "State agency — plans, builds, and maintains MN highways, bridges, transit, rail, aviation, and freight infrastructure. Sources for closures, construction schedules, and traveler advisories.",
+      "county": "Statewide",
+      "employees": null,
+      "year_founded": 1976,
+      "volunteers_needed": false,
+      "ice_resistance_focus": false,
+      "sources": "https://www.dot.state.mn.us/ ; https://511mn.org/"
+    },
+    {
       "name": "360 Communities – Burnsville Resource Center & Food Shelf",
       "website": "https://360communities.org/",
       "phone": "952-985-5300",

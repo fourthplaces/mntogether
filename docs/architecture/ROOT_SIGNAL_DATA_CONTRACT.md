@@ -274,7 +274,7 @@ Every non-editorial post has a source. Two kinds; the data model handles both.
 
 **"Up to date" handling.** On every match, if the submission carries newer metadata than the stored row (e.g., a changed website), the CMS flags the post for editor review with a `source_stale` notice rather than silently overwriting. Editors decide.
 
-The post gets `organization_id` set directly (normalizing the current seed's roundabout org→source→post_sources join).
+The post gets linked to the organization via `post_sources → sources → organizations`. Note: `posts.organization_id` as a direct FK was dropped in migration 122; resolution happens through the source graph so the same link model works for multi-source posts (e.g., a story carried on the org's website AND their Instagram — two `post_sources` rows, one organization). If editorial friction emerges from the join, re-adding `posts.organization_id` is a known future simplification.
 
 ### 5.2 Individual sources
 
