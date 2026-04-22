@@ -7,6 +7,195 @@
 
 ---
 
+## 2026-04-20 — Session: Root Signal contract, Statewide, layout polish, lifecycle gate
+
+### Root Signal is the *producer* of posts, not an enrichment service
+
+**Decision:** The authoritative model is "Root Signal produces posts;
+Root Editorial consumes them" (<1% of posts are editor-authored).
+Consolidated the prior two in-conflict specs
+(`ROOT_SIGNAL_SPEC.md` framed Signal as enrichment-only;
+`ROOT_SIGNAL_INGEST_SPEC.md` framed it as production) into a single
+canonical doc at `docs/architecture/ROOT_SIGNAL_DATA_CONTRACT.md`.
+Both old files now carry a "SUPERSEDED" banner pointing at the new
+one.
+
+**Implication:** Any future Signal-integration design should extend
+DATA_CONTRACT.md, not the old specs. The ingest validation rules,
+body length floors, and per-post-type field-group requirements all
+live there.
+
+### body_raw floor is 250 chars on every weight — light included
+
+**Decision:** Even `weight = light` posts need a ≥250-char
+`body_raw`. Light is a broadsheet-layout signal (the post renders
+in a small card), not a content-depth signal — the detail page
+always shows the full body.
+
+**Implication:** Signal must produce a usable body_raw for every
+post, not just a one-sentence teaser. Ingest validation rejects
+below-floor submissions. The enrichment plan encodes the same rule
+for seed data.
+
+### No calendar dates in seed titles or body prose
+
+**Decision:** Seed dates are `NOW()`-relative via `offsetDays`.
+Hardcoded dates like "April 3–5" drift every time the seed runs on
+a different day. Seed titles/bodies use duration language ("three-
+day closure") or weekday-relative references; the `datetime` /
+`schedule` field groups are the source of truth for specific dates.
+
+**Implication:** Codified in `SEED_DATA_ENRICHMENT_PLAN.md` §Pass 1
+quality bar and in the Highway 169 worked example. When Signal
+eventually produces posts for real ingestion, the same rule applies
+to any ambient "this week" phrasing.
+
+### Organization linking via `post_sources`, not a direct FK
+
+**Decision:** Migration 122 dropped `posts.organization_id`. We kept
+that decision — edition_ops and the data contract both use the
+`post → post_sources → sources → organizations` graph to resolve a
+post's organization. This preserves multi-source posts (a story
+carried on an org's website AND its Instagram = two `post_sources`
+rows, one organization).
+
+**Implication:** Every org-link query goes through the source
+graph. No shortcut JOIN from `posts` to `organizations`. The seed
+pipeline's `organizationName` convenience field feeds the graph via
+`post_source_attribution.source_name` matching on the org's exact
+`name`; seed throws loudly on unknown org names rather than silently
+orphaning.
+
+### Statewide is a *pseudo-county* (B.2), not a virtual edition (B.1)
+
+**Decision:** Migration 236 adds an `is_pseudo BOOLEAN` column on
+`counties` and inserts a "Statewide" row (fips_code='statewide').
+The layout engine's `load_county_posts` branches on `is_pseudo` and
+calls a narrower `load_statewide_posts` helper that pulls only
+posts explicitly tagged `service_area='statewide'`. Alternative
+considered: compose a statewide edition on the fly from tagged
+posts without any DB record (B.1); rejected because editors lose
+editorial control over ordering and the admin workflow doesn't
+apply uniformly.
+
+**Implication:** All code that iterates "all counties" must decide
+whether pseudo counties should be included. Batch-generate
+includes them (correct — pseudo counties want editions); dashboard
+"N of 87" roll-ups exclude them (correct — statewide is surfaced
+in its own callout). `default_edition_title` branches on pseudo
+so the title reads "Statewide — Week of…" rather than "Statewide
+County — Week of…".
+
+### Lifecycle gate: editions with 0 populated slots can't transition
+
+**Decision:** `require_populated_edition` guard fires on
+`review_edition`, `approve_edition`, and `publish_edition` — any of
+them rejects an edition with zero slots where `post_id OR widget_id
+IS NOT NULL`. Draft stays writable so regeneration still works.
+
+**Implication:** The "Aitkin approved-but-empty" artifact that
+surfaced editorial review can't happen again. If a regeneration
+clears slots and fails to repopulate, the editor can't push the
+empty edition forward — the only remediation is to regenerate
+the layout. Pre-existing empty records aren't healed automatically;
+they need a manual regenerate or a status reset.
+
+### Anchor cells clamp their bodies like non-anchors
+
+**Decision:** `prepare.ts` used to set `clamp: 0` for anchor cells
+on the theory that wider anchor columns "don't need clamping." But
+`.clamp-0` isn't a valid CSS class, so anchor bodies rendered un-
+clamped and overflowed their cells (alert-urgent / gaz-story /
+gaz-request all hit this). Flipped the anchor sentinel from `0` to
+`undefined` so anchor cards pick up the template's configured
+clamp value like non-anchor cells.
+
+**Implication:** 22 card templates fixed from one change. Any new
+template that uses `d.clamp ?? N` with idiomatic defaults now
+works correctly in both anchor and non-anchor positions. Features
+still get `undefined` (they use `<MRichBody>` which ignores clamp
+anyway).
+
+### Whole-tile click is an onClick wrapper, not an overlay
+
+**Decision:** Broadsheet cards are fully clickable via a
+`<ClickableTile>` wrapper in `BroadsheetRenderer` that (a) bails on
+native interactive targets (anchor/button/input), (b) bails when
+text is selected, (c) bails on modifier keys, (d) otherwise calls
+`router.push()`. Superseded the earlier `.post-link__overlay`
+absolute-positioned `<a>` pattern, which captured all pointer
+events and broke text selection + nested-link hover states.
+
+**Implication:** Any future broadsheet card template should use
+`<MTitle>` / `<MInlineTitle>` for link participation via
+`PostDetailLinkProvider` context — the inner anchor handles
+keyboard nav, the wrapper handles the "click empty space" case.
+Don't layer another overlay on top.
+
+### Layout engine cell-cohesion pre-pass
+
+**Decision:** Before `fill_slot_group`'s greedy priority-ordered
+fill, count candidates per `post_type` in the pool and bias the
+sort so the type with the most candidates starts the cell. Lone
+high-priority minority-type posts no longer orphan themselves
+inside a cell of a different type (dig-story + dig-request mixed
+next to pure dig-update cells, etc.). 4 unit tests lock in the
+new behavior; existing `fill_slot_group` had none before.
+
+**Implication:** Editors see more cohesive cells without manual
+reshuffling. If a post gets pushed to an adjacent row because its
+type is in minority, that's by design — it'll cluster with peers
+there.
+
+### Success alerts cluster content; padding is on the parent
+
+**Decision:** Two separate fixes to success alerts:
+(1) `flex justify-between gap-4` on the content (not
+`justify-between` alone) so short messages + dismiss buttons don't
+sit across a 1000px whitespace gap in a full-width banner. (2) The
+parent column carries `px-6`; alerts use no horizontal margin —
+`w-full + mx-6` combine under box-sizing: border-box to overflow
+the container by 48px, which is how the "Edition approved" banner
+stretched wider than the rows beneath.
+
+**Implication:** Any new alert inside a `max-w-*` column should
+inherit horizontal padding from the parent, not carry its own
+horizontal margin. This applies to the dashboard flash alerts,
+edition-page alerts, and any future admin-ui banner.
+
+### Sidebar Tooltip mounts after hydration
+
+**Decision:** `SidebarMenuButton` defers wrapping its child in
+`<Tooltip>` until after `useEffect` fires. Base UI's
+`TooltipTrigger` uses `React.useId()` for ARIA wiring, and those
+ids diverged between server and client (likely the Suspense
+boundary + urql query in `AdminSidebar` shifting the useId
+counter) — every sidebar nav button hit a "this won't be patched
+up" hydration warning. Skipping the Tooltip wrapper during SSR +
+first client render sidesteps the issue entirely; tooltips only
+show when the sidebar is collapsed to icons-only, so post-mount
+attachment is invisible.
+
+**Implication:** If Base UI fixes its ARIA-id stability we can
+revert the deferred mount. Any other Base UI component with
+`useId()`-based ARIA wiring nested inside admin-app SSR boundaries
+may hit the same issue and need the same treatment.
+
+### "Up to date" = `status === 'published'`, nothing weaker
+
+**Decision:** Both the dashboard UI counter (`"N of 87 counties
+published"`) and the `countyDashboard` resolver's `isStale` logic
+use `status === "published"` as the only way a county counts as
+current. Approved editions are *not* counted as up-to-date — an
+editor approving is an internal signal, not a public-site signal.
+
+**Implication:** "Approved but not published" shows up as non-
+zero in the dashboard breakdown but doesn't contribute to the
+headline coverage counter. Keeps the public-readiness number
+honest.
+
+---
+
 ## 2026-04-19 — Session: Preview URLs, Org Links, DnD Fix
 
 ### Platform presence is `organization_links` rows, not tags
