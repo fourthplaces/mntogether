@@ -100,6 +100,71 @@ ul, ol {
   padding-top: 4rem;
 }
 
+/* ========== COUNTY PICKER ========== */
+/* The picker appears in two places: (a) as the primary call-to-action
+ * on the picker-landing home state, (b) as a small bar above the
+ * broadsheet so users can switch counties without leaving the page. */
+
+.county-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.county-picker__label {
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.02em;
+}
+.county-picker__select {
+  background: transparent;
+  color: white;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.county-picker__select option {
+  color: #000;
+  background: #fff;
+}
+
+.broadsheet-county-bar {
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem 1rem;
+}
+
+/* Landing state — prominent picker when no county is selected */
+.picker-landing {
+  text-align: center;
+  padding: 2rem 0 2.5rem;
+}
+.picker-landing__title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.picker-landing__lede {
+  max-width: 44rem;
+  margin: 0 auto 1.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+}
+.picker-landing__picker .county-picker {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  padding: 0.5rem 1rem;
+}
+.picker-landing__picker .county-picker__select {
+  font-size: 1rem;
+}
+
 /* ========== SITE HEADER (app shell only) ========== */
 
 .app-shell .site-header {

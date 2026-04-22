@@ -757,6 +757,24 @@ ol.list-b li::before {
    ═══════════════════════════════════════════════ */
 
 /* Option A: Below the Fold — horizontal 3-col strip */
+/* Items section in the main column — mirrors the .related-a header
+   treatment so the body → items → source → related → sidebar flow has
+   a consistent divider rhythm. Heading labels are post_type aware
+   ("What's needed" for need posts, "Resources" for references, etc.) */
+.article-items {
+  clear: both;
+  border-top: 2px solid var(--ink);
+  padding-top: 16px;
+  margin-top: 40px;
+}
+.article-items__heading {
+  font-family: var(--font-condensed);
+  font-weight: 500; font-size: 0.92rem;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink);
+  margin: 0 0 16px 0;
+}
+
 .related-a {
   clear: both;
   border-top: 2px solid var(--ink);

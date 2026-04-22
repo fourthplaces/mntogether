@@ -60,6 +60,24 @@ function formatCategory(value: string): string {
     .join(" ");
 }
 
+/**
+ * Section heading for the items list. Returns null when no meaningful
+ * label fits — "Items" as a header is noise; the list alone is clear
+ * enough in those cases.
+ */
+function itemsHeadingFor(postType?: string | null): string | null {
+  switch (postType) {
+    case "need":
+      return "What's needed";
+    case "aid":
+      return "What's available";
+    case "reference":
+      return "Resources";
+    default:
+      return null;
+  }
+}
+
 function toWeekSchedule(
   entries: Array<{ day: string; opens: string; closes: string }>
 ): WeekSchedule | null {
@@ -277,6 +295,27 @@ export function PostDetailView({ post, banner }: Props) {
             )
           : null}
 
+      {/* Items list — belongs in the main column, not the sidebar. A
+       * reference directory, a needs list, or an offers inventory IS
+       * the substance of the post, not a secondary aside. The heading
+       * adapts to post_type so it reads naturally for each variant. */}
+      {post.items && post.items.length > 0 && (() => {
+        const heading = itemsHeadingFor(post.type);
+        return (
+          <section className="article-items">
+            {heading && <h2 className="article-items__heading">{heading}</h2>}
+            <ResourceListA
+              items={post.items.map(
+                (item: { name: string; detail?: string | null }) => ({
+                  name: item.name,
+                  detail: item.detail || "",
+                })
+              )}
+            />
+          </section>
+        );
+      })()}
+
       {sourceAttribution &&
         (sourceAttribution.sourceName || sourceAttribution.attribution) && (
           <SourceAttributionA
@@ -404,18 +443,7 @@ export function PostDetailView({ post, banner }: Props) {
         </SidebarCard>
       )}
 
-      {post.items && post.items.length > 0 && (
-        <SidebarCard header="Items">
-          <ResourceListA
-            items={post.items.map(
-              (item: { name: string; detail?: string | null }) => ({
-                name: item.name,
-                detail: item.detail || "",
-              })
-            )}
-          />
-        </SidebarCard>
-      )}
+      {/* Items rendered in the main column — see mainContent above. */}
 
       {post.person && post.person.name && (
         <SidebarCard header="About">

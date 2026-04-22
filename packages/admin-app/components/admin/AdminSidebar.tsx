@@ -198,7 +198,24 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/" />} tooltip="View Site" className="h-9 text-[15px]">
+                {/* Cross-origin link to the public web app — plain <a>
+                 * with target="_blank" rather than next/link. Using
+                 * <Link href="/"> pointed at the admin-app's own /,
+                 * which redirect()s back to /admin and triggered a
+                 * Next.js Turbopack Performance.measure error during
+                 * the redirect chain. Open the public site in a new
+                 * tab so the admin session stays intact too. */}
+                <SidebarMenuButton
+                  render={
+                    <a
+                      href={process.env.NEXT_PUBLIC_WEB_APP_URL || "http://localhost:3001"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    />
+                  }
+                  tooltip="View Site"
+                  className="h-9 text-[15px]"
+                >
                   <ExternalLink />
                   <span>View Site</span>
                 </SidebarMenuButton>

@@ -3,8 +3,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// `[&>*:not(svg)]:col-start-2` is load-bearing: the grid layout below
+// puts the optional icon in column 1 and the content in column 2.
+// AlertTitle / AlertDescription have col-start-2 baked in, but raw
+// children (like a plain <div>) default to column 1 — the 0-width
+// column — and get squished, wrapping text for no visible reason
+// (regression seen on the "Layout regenerated" success banner). This
+// rule forces every non-svg direct child into the content column so
+// Alert works with both the subcomponents AND raw content.
 const alertVariants = cva(
-  "relative w-full rounded-lg border border-border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
+  "relative w-full rounded-lg border border-border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current [&>*:not(svg)]:col-start-2",
   {
     variants: {
       variant: {

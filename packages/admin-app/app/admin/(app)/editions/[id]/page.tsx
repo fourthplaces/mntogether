@@ -541,15 +541,21 @@ export default function EditionDetailPage() {
          * always fills up to max-w-6xl regardless of which tab is
          * active — otherwise the Posts/Widgets tables render narrower
          * than the Layout grid. */}
-        <div className="w-full max-w-6xl mx-auto">
+        {/* Body column. `px-6` lives on the outer container (not on the
+         * alerts' own classes) so that Alert's built-in `w-full` doesn't
+         * combine with margin classes to overflow the column by 48px —
+         * the bug that made "Edition approved" stretch wider than the
+         * row cards below. All children (alerts + tab content wrapper)
+         * inherit the padded width. */}
+        <div className="w-full max-w-6xl mx-auto px-6">
           {actionError && (
-            <Alert variant="error" className="mx-6 mt-4">
+            <Alert variant="error" className="mt-4">
               <AlertDescription>{actionError}</AlertDescription>
             </Alert>
           )}
           {actionSuccess && (
-            <Alert variant="success" className="mx-6 mt-4">
-              <div className="flex items-center justify-between">
+            <Alert variant="success" className="mt-4">
+              <div className="flex items-center justify-between gap-4">
                 <span>{actionSuccess}</span>
                 <Button variant="ghost" size="xs" onClick={() => setActionSuccess(null)}>
                   dismiss
@@ -558,7 +564,7 @@ export default function EditionDetailPage() {
             </Alert>
           )}
 
-          <div className="px-6 pt-6">
+          <div className="pt-6">
             <TabsContent value="layout">
               <BroadsheetEditor
                 edition={edition}
@@ -1172,7 +1178,7 @@ function BroadsheetEditor({
       )}
       {actionSuccess && (
         <Alert variant="success" className="mb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <span>{actionSuccess}</span>
             <Button variant="ghost" size="xs" onClick={() => setActionSuccess(null)}>dismiss</Button>
           </div>
