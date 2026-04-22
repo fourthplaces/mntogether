@@ -80,6 +80,11 @@ pub struct Post {
     // Deduplication tracking (points to the canonical post this was merged into)
     pub duplicate_of_id: Option<PostId>,
 
+    // True when this row was inserted by the dev seed script (data/seed.mjs).
+    // Surfaced to the admin CMS so every dummy entity is visibly labeled
+    // and publishing a seed-contaminated edition is gated.
+    pub is_seed: bool,
+
     // Full-text search vector (auto-managed by DB trigger, never read in app code)
     #[sqlx(skip)]
     #[serde(skip)]
@@ -112,6 +117,7 @@ pub struct PostWithDistance {
     pub post_type: String,
     pub status: String,
     pub is_urgent: bool,
+    pub is_seed: bool,
     pub location: Option<String>,
     pub submission_type: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -132,6 +138,7 @@ pub struct PostWithDistanceAndCount {
     pub post_type: String,
     pub status: String,
     pub is_urgent: bool,
+    pub is_seed: bool,
     pub location: Option<String>,
     pub submission_type: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -1100,7 +1107,7 @@ impl Post {
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
             SELECT p.id, p.title, p.body_raw, p.body_light,
-                   p.post_type, p.status, p.is_urgent,
+                   p.post_type, p.status, p.is_urgent, p.is_seed,
                    p.location, p.submission_type,
                    p.created_at, p.published_at, p.updated_at,
                    l.postal_code as zip_code, l.city as location_city,
@@ -1148,7 +1155,7 @@ impl Post {
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
             SELECT p.id, p.title, p.body_raw, p.body_light,
-                   p.post_type, p.status, p.is_urgent,
+                   p.post_type, p.status, p.is_urgent, p.is_seed,
                    p.location, p.submission_type,
                    p.created_at, p.published_at, p.updated_at,
                    MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) as distance_miles,
@@ -1180,7 +1187,7 @@ impl Post {
               AND z.longitude BETWEEN c.longitude - ($6::float8 / (69.0 * cos(radians(c.latitude))))
                                   AND c.longitude + ($6::float8 / (69.0 * cos(radians(c.latitude))))
             GROUP BY p.id, p.title, p.body_raw, p.body_light,
-                     p.post_type, p.status, p.is_urgent, p.location,
+                     p.post_type, p.status, p.is_urgent, p.is_seed, p.location,
                      p.submission_type, p.created_at, p.published_at, p.updated_at,
                      c.latitude, c.longitude
             HAVING MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) <= $6
@@ -1297,6 +1304,7 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND p.is_seed = false
               AND ($1::text IS NULL OR p.post_type = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
               {}
@@ -1330,6 +1338,7 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND p.is_seed = false
               AND ($1::text IS NULL OR p.post_type = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
               {}
@@ -1362,7 +1371,7 @@ impl Post {
             )
             SELECT DISTINCT ON (p.id)
                    p.id, p.title, p.body_raw,
-                   p.post_type, p.status, p.is_urgent,
+                   p.post_type, p.status, p.is_urgent, p.is_seed,
                    p.location, p.submission_type,
                    p.created_at, p.published_at, p.updated_at,
                    l.postal_code as zip_code, l.city as location_city,

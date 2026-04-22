@@ -261,6 +261,13 @@ type Post {
   translationOfId: ID
   duplicateOfId: ID
   sourceLanguage: String!
+  """
+  True when this post was inserted by the dev seed script (data/seed.mjs).
+  The admin CMS renders a SEED badge on every surface that shows a seed
+  post; the edition publish flow blocks if any slotted post is seed.
+  Set at ingest-time only — see migration 000226.
+  """
+  isSeed: Boolean!
   # Field groups
   media: [BroadsheetMedia!]!
   items: [BroadsheetItem!]!
@@ -360,6 +367,12 @@ type Organization {
   status: OrganizationStatus!
   createdAt: String!
   updatedAt: String!
+  """
+  True when this organization was inserted by the dev seed script
+  (data/seed.mjs). Drives the admin SEED badge and the edition
+  publish gate. See migration 000237.
+  """
+  isSeed: Boolean!
   tags: [Tag!]!
   posts(limit: Int): PostConnection!
   notes: [Note!]!
@@ -526,6 +539,13 @@ type Edition {
   rows: [EditionRow!]!
   sections: [EditionSection!]!
   createdAt: String!
+  """
+  True when any slotted post or widget in this edition is seed data.
+  Derived client-side from the slots list. The admin CMS publish flow
+  blocks a seed-contaminated edition from being published — callers
+  must use this to show a warning and require an explicit override.
+  """
+  containsSeedContent: Boolean!
 }
 
 type Widget {
@@ -541,6 +561,12 @@ type Widget {
   endDate: String
   createdAt: String!
   updatedAt: String!
+  """
+  True when this widget was inserted by the dev seed script
+  (data/seed.mjs). Drives the admin SEED badge and the edition
+  publish gate. See migration 000237.
+  """
+  isSeed: Boolean!
 }
 
 type EditionSection {

@@ -24,6 +24,15 @@ import {
   BatchPublishEditionsMutation,
 } from "@/lib/graphql/editions";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogClose,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 // ─── Column config (left-to-right = editorial flow) ─────────────────────────
 
@@ -39,6 +48,13 @@ type ColumnId = (typeof COLUMNS)[number]["id"];
 
 export default function WorkflowPage() {
   const [activeCard, setActiveCard] = useState<EditionCardData | null>(null);
+  // Batch-publish is the one path to `status = published` that bypasses
+  // the per-edition detail page (and therefore its seed-contamination
+  // gate). We don't have slot-level info here — `latest_editions` doesn't
+  // return rows — so we can't compute containsSeedContent per card. The
+  // fallback is a blanket confirmation dialog: editors must acknowledge
+  // that seed rows, if any are slotted, would ship with the batch.
+  const [batchPublishConfirmOpen, setBatchPublishConfirmOpen] = useState(false);
 
   const mutationContext = {
     additionalTypenames: ["Edition", "EditionConnection"],
@@ -159,11 +175,16 @@ export default function WorkflowPage() {
     [findColumnForEdition, reviewEdition, approveEdition, mutationContext]
   );
 
-  const handlePublishAll = useCallback(async () => {
+  const runPublishAll = useCallback(async () => {
     const approvedIds = editionsByColumn.approved.map((e) => e.id);
     if (approvedIds.length === 0) return;
     await batchPublishEditions({ ids: approvedIds }, mutationContext);
   }, [editionsByColumn, batchPublishEditions, mutationContext]);
+
+  const handlePublishAll = useCallback(() => {
+    if (editionsByColumn.approved.length === 0) return;
+    setBatchPublishConfirmOpen(true);
+  }, [editionsByColumn]);
 
   // Workflow guidance message
   const guidanceMessage = useMemo(() => {
@@ -249,6 +270,43 @@ export default function WorkflowPage() {
           </p>
         </div>
       )}
+
+      {/* Batch-publish confirmation. We don't load per-edition slot info
+       * here, so we can't detect seed contamination per card — this is a
+       * blanket warning. Editors should spot-check each approved edition
+       * on its detail page, which has a hard block + override. */}
+      <Dialog open={batchPublishConfirmOpen} onOpenChange={setBatchPublishConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish {approvedCount} approved editions?</DialogTitle>
+            <DialogDescription>
+              Batch publish runs the publish mutation for every approved
+              edition at once. It does <strong>not</strong> check for seed
+              content per-edition — if any approved edition still has dummy
+              posts or widgets slotted, they will ship.
+              <br /><br />
+              If you aren&rsquo;t sure, cancel, open each approved edition
+              detail page, and publish individually. Seed-contaminated
+              editions block on the detail page with an explicit override.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="success"
+              disabled={batchPublishing}
+              onClick={async () => {
+                setBatchPublishConfirmOpen(false);
+                await runPublishAll();
+              }}
+            >
+              Publish {approvedCount} editions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

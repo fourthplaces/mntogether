@@ -22,6 +22,7 @@ import {
   OrganizationsListQuery,
   CreateOrganizationMutation,
 } from "@/lib/graphql/organizations";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 
 function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "secondary" {
   switch (status) {
@@ -220,6 +221,7 @@ type OrgRow = {
   status: string;
   sourceType: string;
   createdAt: string;
+  isSeed?: boolean | null;
 };
 
 function SourcesTable({
@@ -255,7 +257,10 @@ function SourcesTable({
               className="cursor-pointer"
             >
               <TableCell className="pl-6">
-                <div className="font-medium text-foreground truncate">{org.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-medium text-foreground truncate">{org.name}</div>
+                  <SeedBadgeIf isSeed={org.isSeed} size="sm" />
+                </div>
                 {org.description && (
                   <div className="text-sm text-muted-foreground truncate">
                     {org.description}

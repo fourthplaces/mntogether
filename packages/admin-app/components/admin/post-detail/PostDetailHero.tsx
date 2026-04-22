@@ -15,6 +15,7 @@ import { ArrowLeft, ExternalLink, Eye } from "lucide-react";
 import Link from "next/link";
 import { POST_TYPES, WEIGHTS } from "@/lib/post-form-constants";
 import { PencilMarkPicker } from "./PencilMarkPicker";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 
 type PencilMark = "star" | "heart" | "smile" | "circle" | null;
 
@@ -38,6 +39,7 @@ type HeroPost = {
   weight?: string | null;
   priority?: number | null;
   isUrgent?: boolean | null;
+  isSeed?: boolean | null;
   pencilMark?: string | null;
   sourceLanguage?: string | null;
   submissionType?: string | null;
@@ -219,9 +221,12 @@ export function PostDetailHero({
         </div>
 
         {/* Title */}
-        <h1 className="text-3xl font-semibold text-foreground leading-tight mb-4 tracking-tight">
-          {post.title}
-        </h1>
+        <div className="flex items-start gap-3 mb-4">
+          <h1 className="text-3xl font-semibold text-foreground leading-tight tracking-tight">
+            {post.title}
+          </h1>
+          <SeedBadgeIf isSeed={post.isSeed} className="mt-2" />
+        </div>
 
         {/* Meta strip: status · language · date strip */}
         <div className="flex items-center flex-wrap gap-3 mb-6">

@@ -162,11 +162,19 @@ const orgEntries = Array.isArray(orgs)
   ? orgs
   : orgs.organizations || Object.values(orgs).flat();
 
+// Clean up any previous seeded orgs so re-seeding doesn't duplicate.
+// Scoped to is_seed = true rows only — real submitted orgs are
+// preserved. Takes down dependent sources/post_sources rows via
+// cascade (organization_id FK on sources is ON DELETE CASCADE).
+out("-- Clean previous seeded organizations (is_seed only)");
+out("DELETE FROM organizations WHERE is_seed = true;");
+out("");
+
 for (const org of orgEntries) {
   const name = org.name || org.organization;
   const desc = org.description || org.populations_served || null;
   out(
-    `INSERT INTO organizations (name, description, status) VALUES (${esc(name)}, ${esc(desc)}, 'approved') ON CONFLICT (name) DO NOTHING;`
+    `INSERT INTO organizations (name, description, status, is_seed) VALUES (${esc(name)}, ${esc(desc)}, 'approved', true) ON CONFLICT (name) DO UPDATE SET is_seed = true;`
   );
 }
 out("");
@@ -540,8 +548,9 @@ if (Object.keys(seedMedia).length > 0) {
 }
 
 out("-- Widgets: clear + reseed (idempotent for dev — widgets are evergreen curator content)");
-out("DELETE FROM edition_slots WHERE kind = 'widget';");
-out("DELETE FROM widgets WHERE authoring_mode = 'human';");
+out("-- Scoped to is_seed = true so any human-authored real widgets survive re-seed.");
+out("DELETE FROM edition_slots WHERE kind = 'widget' AND widget_id IN (SELECT id FROM widgets WHERE is_seed = true);");
+out("DELETE FROM widgets WHERE is_seed = true;");
 out("");
 
 const widgetJson = (obj) => {
@@ -568,13 +577,13 @@ const widgetJson = (obj) => {
 // ── Evergreen widgets (NULL county_id, apply to every edition) ────────────
 out("-- Section separators (evergreen editorial labels)");
 for (const sep of widgets.section_separators || []) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('section_sep', 'human', ${widgetJson(sep)}::jsonb);`);
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data, is_seed) VALUES ('section_sep', 'human', ${widgetJson(sep)}::jsonb, true);`);
 }
 out("");
 
 out("-- Pull quotes (evergreen editorial)");
 for (const pq of widgets.pull_quotes || []) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('pull_quote', 'human', ${widgetJson(pq)}::jsonb);`);
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data, is_seed) VALUES ('pull_quote', 'human', ${widgetJson(pq)}::jsonb, true);`);
 }
 out("");
 
@@ -589,7 +598,7 @@ for (const photo of widgets.photos || []) {
   if (resolved) {
     out(`WITH inserted_widget AS (`);
     out(
-      `  INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb) RETURNING id`
+      `  INSERT INTO widgets (widget_type, authoring_mode, data, is_seed) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb, true) RETURNING id`
     );
     out(`)`);
     out(`INSERT INTO media_references (media_id, referenceable_type, referenceable_id, field_key)`);
@@ -598,7 +607,7 @@ for (const photo of widgets.photos || []) {
     );
     out(`ON CONFLICT DO NOTHING;`);
   } else {
-    out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb);`);
+    out(`INSERT INTO widgets (widget_type, authoring_mode, data, is_seed) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb, true);`);
   }
 }
 out("");
@@ -607,13 +616,13 @@ out("");
 // allowlist; most resource info needs to be local to be useful.
 out("-- Statewide resource bars (narrow evergreen allowlist)");
 for (const rb of widgets.statewide?.resource_bars || []) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb);`);
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data, is_seed) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb, true);`);
 }
 out("");
 
 out("-- Statewide numbers (narrow evergreen allowlist)");
 for (const n of widgets.statewide?.numbers || []) {
-  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('number', 'human', ${widgetJson(n)}::jsonb);`);
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data, is_seed) VALUES ('number', 'human', ${widgetJson(n)}::jsonb, true);`);
 }
 out("");
 
@@ -642,12 +651,12 @@ BEGIN
 
   for (const rb of countyWidgets.resource_bars || []) {
     out(
-      `  INSERT INTO widgets (widget_type, authoring_mode, data, county_id) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb, cid);`
+      `  INSERT INTO widgets (widget_type, authoring_mode, data, county_id, is_seed) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb, cid, true);`
     );
   }
   for (const n of countyWidgets.numbers || []) {
     out(
-      `  INSERT INTO widgets (widget_type, authoring_mode, data, county_id) VALUES ('number', 'human', ${widgetJson(n)}::jsonb, cid);`
+      `  INSERT INTO widgets (widget_type, authoring_mode, data, county_id, is_seed) VALUES ('number', 'human', ${widgetJson(n)}::jsonb, cid, true);`
     );
   }
 

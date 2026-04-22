@@ -295,6 +295,10 @@ pub struct EditionSlotResult {
     pub post_weight: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_status: Option<String>,
+    /// True when the slotted post is seed data. Drives the edition-level
+    /// "contains seed content" indicator used by the publish gate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_is_seed: Option<bool>,
     // Widget fields (present when kind='widget')
     #[serde(skip_serializing_if = "Option::is_none")]
     pub widget_id: Option<Uuid>,
@@ -304,6 +308,10 @@ pub struct EditionSlotResult {
     pub widget_authoring_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub widget_data: Option<serde_json::Value>,
+    /// True when the slotted widget is seed data — same role as
+    /// `post_is_seed`, just on the other side of the slot union.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_is_seed: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -634,10 +642,12 @@ async fn load_edition_detail(
                     post_post_type: s.post_post_type.clone(),
                     post_weight: s.post_weight.clone(),
                     post_status: s.post_status.clone(),
+                    post_is_seed: s.post_is_seed,
                     widget_id: s.widget_id,
                     widget_type: s.widget_type.clone(),
                     widget_authoring_mode: s.widget_authoring_mode.clone(),
                     widget_data: s.widget_data.clone(),
+                    widget_is_seed: s.widget_is_seed,
                 })
                 .collect(),
         });
@@ -705,10 +715,12 @@ async fn build_row_result(
                 post_post_type: s.post_post_type.clone(),
                 post_weight: s.post_weight.clone(),
                 post_status: s.post_status.clone(),
+                post_is_seed: s.post_is_seed,
                 widget_id: s.widget_id,
                 widget_type: s.widget_type.clone(),
                 widget_authoring_mode: s.widget_authoring_mode.clone(),
                 widget_data: s.widget_data.clone(),
+                widget_is_seed: s.widget_is_seed,
             })
             .collect(),
     })
@@ -734,10 +746,12 @@ async fn slot_with_content_data(
             post_post_type: s.post_post_type,
             post_weight: s.post_weight,
             post_status: s.post_status,
+            post_is_seed: s.post_is_seed,
             widget_id: s.widget_id,
             widget_type: s.widget_type,
             widget_authoring_mode: s.widget_authoring_mode,
             widget_data: s.widget_data,
+            widget_is_seed: s.widget_is_seed,
         }),
         None => Ok(EditionSlotResult {
             id: slot.id,
@@ -750,10 +764,12 @@ async fn slot_with_content_data(
             post_post_type: None,
             post_weight: None,
             post_status: None,
+            post_is_seed: None,
             widget_id: slot.widget_id,
             widget_type: None,
             widget_authoring_mode: None,
             widget_data: None,
+            widget_is_seed: None,
         }),
     }
 }
@@ -1143,10 +1159,12 @@ async fn reorder_rows(
                     post_post_type: s.post_post_type.clone(),
                     post_weight: s.post_weight.clone(),
                     post_status: s.post_status.clone(),
+                    post_is_seed: s.post_is_seed,
                     widget_id: s.widget_id,
                     widget_type: s.widget_type.clone(),
                     widget_authoring_mode: s.widget_authoring_mode.clone(),
                     widget_data: s.widget_data.clone(),
+                    widget_is_seed: s.widget_is_seed,
                 })
                 .collect(),
         });

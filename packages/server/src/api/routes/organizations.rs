@@ -133,6 +133,9 @@ pub struct OrganizationResult {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    /// True when this org was inserted by the dev seed script. Surfaced
+    /// to the admin CMS so every dummy entity is visibly labeled.
+    pub is_seed: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -186,6 +189,7 @@ fn org_to_result(org: Organization) -> OrganizationResult {
         status: org.status,
         created_at: org.created_at.to_rfc3339(),
         updated_at: org.updated_at.to_rfc3339(),
+        is_seed: org.is_seed,
     }
 }
 
@@ -230,7 +234,9 @@ async fn public_get(
     let pool = &state.deps.db_pool;
     let org = Organization::find_by_id(OrganizationId::from(req.id), pool).await?;
 
-    if org.status != "approved" {
+    if org.status != "approved" || org.is_seed {
+        // Seed orgs are deliberately 404'd on the public endpoint so dev
+        // seed data cannot appear on the public site under any URL.
         return Err(ApiError::NotFound("Organization not found".into()));
     }
 

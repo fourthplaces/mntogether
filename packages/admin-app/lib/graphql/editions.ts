@@ -140,6 +140,7 @@ export const EditionDetailQuery = graphql(`
       status
       publishedAt
       createdAt
+      containsSeedContent
       sections {
         id
         title
@@ -174,6 +175,7 @@ export const EditionDetailQuery = graphql(`
             postType
             weight
             status
+            isSeed
           }
           postTemplate
           widget {
@@ -181,6 +183,7 @@ export const EditionDetailQuery = graphql(`
             widgetType
             authoringMode
             data
+            isSeed
           }
           slotIndex
           sortOrder

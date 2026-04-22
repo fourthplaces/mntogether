@@ -83,6 +83,10 @@ pub struct WidgetResult {
     pub end_date: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// True when this widget was inserted by the dev seed script.
+    /// Surfaced to the admin CMS so every dummy entity is visibly
+    /// labeled and a seed-contaminated edition can't be published.
+    pub is_seed: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,6 +111,7 @@ fn widget_to_result(w: &Widget) -> WidgetResult {
         end_date: w.end_date.map(|d| d.to_string()),
         created_at: w.created_at.to_rfc3339(),
         updated_at: w.updated_at.to_rfc3339(),
+        is_seed: w.is_seed,
     }
 }
 

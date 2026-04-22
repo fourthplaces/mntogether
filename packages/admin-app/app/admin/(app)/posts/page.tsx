@@ -36,6 +36,7 @@ import {
   ArchivePostMutation,
   DeletePostMutation,
 } from "@/lib/graphql/posts";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 
 // ─── Types & config ─────────────────────────────────────────────────────────
 
@@ -285,8 +286,11 @@ export default function EditorialPage() {
                       className="cursor-pointer"
                     >
                       <TableCell className="pl-6">
-                        <div className="font-medium text-foreground truncate max-w-lg">
-                          {post.title}
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-foreground truncate max-w-lg">
+                            {post.title}
+                          </div>
+                          <SeedBadgeIf isSeed={post.isSeed} size="sm" />
                         </div>
                         {post.organizationName && (
                           <div className="text-xs text-muted-foreground mt-0.5">

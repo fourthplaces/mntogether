@@ -28,6 +28,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignalPostsQuery, RejectPostMutation } from "@/lib/graphql/posts";
 import { CountiesQuery } from "@/lib/graphql/editions";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -308,8 +309,11 @@ export default function SignalPage() {
                       className="cursor-pointer"
                     >
                       <TableCell className="pl-6">
-                        <div className="font-medium text-foreground truncate max-w-md">
-                          {post.title}
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-foreground truncate max-w-md">
+                            {post.title}
+                          </div>
+                          <SeedBadgeIf isSeed={post.isSeed} size="sm" />
                         </div>
                         {post.location && (
                           <div className="text-xs text-muted-foreground truncate max-w-md mt-0.5">

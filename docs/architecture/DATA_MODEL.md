@@ -225,6 +225,17 @@ Explicit non-scope, to prevent pre-pivot confusion returning:
 
 Anything from the pre-pivot era that describes Editorial as scoring, ranking, crawling, or auto-summarising content is stale. See [`CLAUDE.md` §Reading This Codebase](../../CLAUDE.md).
 
+### 11.1 `is_seed` is first-class
+
+`posts`, `organizations`, and `widgets` each carry an `is_seed BOOLEAN NOT NULL DEFAULT false` column (migrations 000226 and 000237). It is not a transient scaffolding flag — it is an enforced contract between dev seeding and the CMS:
+
+- **Writer.** `data/seed.mjs` sets `is_seed = true` on every row it inserts. Anything from Root Signal ingest, editor creation, or reader submission lands with `is_seed = false` because nothing outside the seeder sets it.
+- **Admin surface.** Every list row and detail page in `packages/admin-app/` that renders a post, organization, widget, or slotted item shows a `SEED` pill (`components/admin/SeedBadge.tsx`) when `isSeed === true`. Editors should never see a dummy entity without the badge.
+- **Publish gate.** The GraphQL `Edition.containsSeedContent` field is true iff any slotted post or widget has `is_seed = true`. The edition detail page blocks the `status → published` transition when this is true, routing the user through a confirmation dialog ("Publish anyway" override) so a real production edition cannot quietly ship seed content.
+- **Public filtering.** `Post::find_public_filtered` / `count_public_filtered` and their `_near_zip` variants filter `AND p.is_seed = false`, so the public web-app never surfaces dummy posts even if the DB contains them.
+
+Root Signal ingest does not touch `is_seed`. If a row shows up with `is_seed = true` in production, it came from a dev seed run — that's a bug, not intended behavior.
+
 ---
 
 ## 12. Where to look for details

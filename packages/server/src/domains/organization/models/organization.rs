@@ -59,6 +59,10 @@ pub struct Organization {
     pub last_extracted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+
+    // True when this row was inserted by the dev seed script (data/seed.mjs).
+    // Surfaced to the admin CMS so every dummy entity is visibly labeled.
+    pub is_seed: bool,
 }
 
 impl Organization {
@@ -123,7 +127,12 @@ impl Organization {
         .map_err(Into::into)
     }
 
-    /// Find all approved organizations that have at least one active post
+    /// Find all approved organizations that have at least one active post.
+    ///
+    /// Public-facing (exposed via `/Organizations/public_list` and the
+    /// web-app org directory). Filters out seed organizations AND seed
+    /// posts, so dummy content can't leak onto the public site even if
+    /// the seeder has run against the live DB.
     pub async fn find_approved(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             r#"
@@ -133,10 +142,12 @@ impl Organization {
             JOIN post_sources ps ON ps.source_id = s.id
             JOIN posts p ON p.id = ps.post_id
             WHERE o.status = 'approved'
+              AND o.is_seed = false
               AND p.status = 'active'
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND p.is_seed = false
             ORDER BY o.name ASC
             "#,
         )

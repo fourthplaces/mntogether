@@ -58,6 +58,7 @@ import {
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 import { AddNoteDialog } from "@/components/admin/AddNoteDialog";
 import { OrganizationLinksSection } from "@/components/admin/OrganizationLinksSection";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -450,6 +451,7 @@ export default function OrganizationDetailPage() {
                       <><Building2 className="h-3 w-3" /> Organization</>
                     )}
                   </Badge>
+                  <SeedBadgeIf isSeed={org.isSeed} />
                 </div>
                 {org.description && (
                   <p className="text-muted-foreground -mt-3">{org.description}</p>
