@@ -3,7 +3,12 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Reference record for a Minnesota county (87 total).
+/// Reference record for a Minnesota county.
+///
+/// Normally there are 87 rows (every real MN county). Synthetic rows
+/// with `is_pseudo = true` also live here — right now that's the
+/// "Statewide" pseudo county used to compose a statewide-tagged
+/// broadsheet for the public home page default.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct County {
     pub id: Uuid,
@@ -17,12 +22,20 @@ pub struct County {
     /// Sum of post weights (heavy=3, medium=2, light=1). Root Signal aims for
     /// this total; the layout engine flexes ±30% based on actual pool.
     pub target_content_weight: i32,
+    /// Synthetic row (e.g. "Statewide") rather than a real MN county.
+    /// Layout engine and editorial workflows treat pseudo counties as
+    /// first-class for generation but exclude them from "N of 87"-style
+    /// coverage roll-ups.
+    pub is_pseudo: bool,
 }
 
 impl County {
-    /// Load all counties, ordered by name.
+    /// Load all counties (real + pseudo), pseudo first so "Statewide"
+    /// sits at the top of any UI list that uses the default order.
     pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>("SELECT * FROM counties ORDER BY name ASC")
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM counties ORDER BY is_pseudo DESC, name ASC"
+        )
             .fetch_all(pool)
             .await
             .map_err(Into::into)

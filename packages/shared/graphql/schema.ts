@@ -502,6 +502,9 @@ type County {
   name: String!
   state: String!
   targetContentWeight: Int!
+  # Synthetic "county" row (e.g. Statewide). Frontends group these
+  # separately in pickers and exclude them from "N of 87" roll-ups.
+  isPseudo: Boolean!
 }
 
 type CountyDashboardRow {

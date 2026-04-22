@@ -244,6 +244,9 @@ export const editionResolvers = {
     fipsCode: (parent: { fipsCode?: string; fips_code?: string }) => {
       return parent.fipsCode ?? parent.fips_code ?? null;
     },
+    isPseudo: (parent: { isPseudo?: boolean; is_pseudo?: boolean }) => {
+      return parent.isPseudo ?? parent.is_pseudo ?? false;
+    },
   },
 
   // Resolve fields on RowTemplate

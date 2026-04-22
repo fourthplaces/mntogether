@@ -223,6 +223,10 @@ pub struct CountyResult {
     pub name: String,
     pub state: String,
     pub target_content_weight: i32,
+    /// Synthetic row (e.g. Statewide) rather than a real MN county.
+    /// Frontends use this to group/flag pseudo counties in pickers
+    /// and to exclude them from "N of 87 counties" roll-ups.
+    pub is_pseudo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -765,7 +769,10 @@ fn parse_date(s: &str, field: &str) -> ApiResult<NaiveDate> {
 
 async fn list_counties(
     State(state): State<AppState>,
-    _user: AdminUser,
+    // Public: the county list drives the public-site county picker.
+    // Names/IDs aren't sensitive; editors use the admin UI for anything
+    // beyond enumeration.
+    _user: crate::api::auth::OptionalUser,
     Json(_req): Json<EmptyRequest>,
 ) -> ApiResult<Json<CountyListResult>> {
     let counties = County::find_all(&state.deps.db_pool).await?;
@@ -779,6 +786,7 @@ async fn list_counties(
                 name: c.name.clone(),
                 state: c.state.clone(),
                 target_content_weight: c.target_content_weight,
+                is_pseudo: c.is_pseudo,
             })
             .collect(),
     }))
@@ -799,6 +807,7 @@ async fn get_county(
         name: county.name,
         state: county.state,
         target_content_weight: county.target_content_weight,
+        is_pseudo: county.is_pseudo,
     }))
 }
 
@@ -828,6 +837,7 @@ async fn update_county_target_weight(
         name: county.name,
         state: county.state,
         target_content_weight: county.target_content_weight,
+        is_pseudo: county.is_pseudo,
     }))
 }
 
@@ -1685,6 +1695,7 @@ async fn build_public_broadsheet(
             name: county.name.clone(),
             state: county.state.clone(),
             target_content_weight: county.target_content_weight,
+            is_pseudo: county.is_pseudo,
         },
         rows: row_results,
         sections: section_results,

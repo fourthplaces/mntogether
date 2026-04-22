@@ -99,6 +99,23 @@ export const PostPreviewQuery = graphql(`
   }
 `);
 
+/**
+ * All Minnesota counties — drives the public-site county picker.
+ * Upstream `counties` query is public (see list_counties route).
+ * Returns all 87 counties regardless of whether they have an
+ * edition; the picker falls back gracefully when a county has
+ * nothing published yet.
+ */
+export const CountiesQuery = graphql(`
+  query Counties {
+    counties {
+      id
+      name
+      isPseudo
+    }
+  }
+`);
+
 export const TrackPostViewMutation = graphql(`
   mutation TrackPostView($postId: ID!) {
     trackPostView(postId: $postId)

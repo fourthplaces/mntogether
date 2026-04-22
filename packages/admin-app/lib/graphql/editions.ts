@@ -22,6 +22,7 @@ export const CountyDashboardQuery = graphql(`
         name
         fipsCode
         targetContentWeight
+        isPseudo
       }
       currentEdition {
         id

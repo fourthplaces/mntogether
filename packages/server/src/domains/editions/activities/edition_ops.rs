@@ -34,16 +34,29 @@ pub async fn create_edition(
     let effective_title = match title {
         Some(t) => Some(t),
         None => {
-            auto_title = format!(
-                "{} County — Week of {}",
-                county.name,
-                period_start.format("%b %d")
-            );
+            auto_title = default_edition_title(&county, period_start);
             Some(auto_title.as_str())
         }
     };
 
     Edition::create(county_id, period_start, period_end, effective_title, pool).await
+}
+
+/// Compose the default edition title for a county.
+///
+/// Real counties get `"{name} County — Week of Apr 20"`; pseudo counties
+/// (e.g. Statewide) drop the trailing " County" so the title doesn't
+/// render as the awkward "Statewide County — Week of Apr 20".
+fn default_edition_title(county: &County, period_start: NaiveDate) -> String {
+    if county.is_pseudo {
+        format!("{} — Week of {}", county.name, period_start.format("%b %d"))
+    } else {
+        format!(
+            "{} County — Week of {}",
+            county.name,
+            period_start.format("%b %d")
+        )
+    }
 }
 
 /// Generate (or re-generate) the layout for an edition using the layout engine.
@@ -286,14 +299,7 @@ pub async fn batch_generate_editions(
             },
             Ok(None) => {
                 // No edition for this period — create + generate
-                match create_and_generate_single(
-                    county.id,
-                    &county.name,
-                    period_start,
-                    period_end,
-                    deps,
-                )
-                .await
+                match create_and_generate_single(&county, period_start, period_end, deps).await
                 {
                     Ok(_) => created += 1,
                     Err(e) => {
@@ -330,20 +336,15 @@ pub async fn batch_generate_editions(
 
 /// Helper: create and generate a single county edition.
 async fn create_and_generate_single(
-    county_id: Uuid,
-    county_name: &str,
+    county: &County,
     period_start: NaiveDate,
     period_end: NaiveDate,
     deps: &ServerDeps,
 ) -> Result<Edition> {
-    let title = format!(
-        "{} County — Week of {}",
-        county_name,
-        period_start.format("%b %d")
-    );
+    let title = default_edition_title(county, period_start);
 
     let edition = Edition::create(
-        county_id,
+        county.id,
         period_start,
         period_end,
         Some(&title),

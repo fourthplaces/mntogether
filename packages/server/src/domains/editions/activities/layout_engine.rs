@@ -571,8 +571,53 @@ fn fill_slot_group(
         candidates.push((i, post, score));
     }
 
-    // Sort by score descending (priority + family bonus)
-    candidates.sort_by(|a, b| b.2.cmp(&a.2));
+    // ── Cell cohesion pre-pass ────────────────────────────────────────
+    // For multi-post cells (trio cells, classifieds stacks, pair-stack
+    // right columns), decide a "target post_type" for the cell BEFORE
+    // the greedy fill picks its first item.
+    //
+    // Without this pass, the greedy sort puts the absolute highest-
+    // priority candidate first. That post's type becomes the cell's
+    // group_type, and subsequent slots soft-prefer it. If only one post
+    // of that type exists in the pool, the soft-preference logic falls
+    // back to "take whatever" to hit count_min — and the cell ends up
+    // mixed while adjacent cells stay pure. A lone high-priority
+    // dig-story can orphan itself inside a cell of dig-updates,
+    // separated from its dig-story peers elsewhere in the edition.
+    //
+    // Bias strategy: count candidates per post_type, pick the type with
+    // the most candidates (tie-break by summed score), and move those
+    // candidates to the front of the sort. Priority still orders within
+    // each type group. Cells with count_max=1 skip this (nothing to
+    // cohere); pools with one candidate skip it too.
+    let target_type: Option<String> = if slot_def.count_max > 1 && candidates.len() > 1 {
+        let mut counts: HashMap<&str, (usize, i32)> = HashMap::new();
+        for (_, post, score) in &candidates {
+            let e = counts.entry(post.post_type.as_str()).or_insert((0, 0));
+            e.0 += 1;
+            e.1 += score;
+        }
+        counts
+            .into_iter()
+            .max_by(|a, b| a.1.0.cmp(&b.1.0).then(a.1.1.cmp(&b.1.1)))
+            .map(|(t, _)| t.to_string())
+    } else {
+        None
+    };
+
+    // Sort: target-type posts first (in score order), then everything
+    // else (also in score order). When target_type is None, this
+    // reduces to plain score-descending — identical to the prior
+    // behavior for count_max=1 cells.
+    candidates.sort_by(|a, b| {
+        let a_target = target_type.as_ref().map_or(false, |t| &a.1.post_type == t);
+        let b_target = target_type.as_ref().map_or(false, |t| &b.1.post_type == t);
+        match (a_target, b_target) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => b.2.cmp(&a.2),
+        }
+    });
 
     // Track the type of the first placed post for intra-group consistency.
     // When multiple posts share a slot group (trio cells, classifieds),
@@ -1273,12 +1318,20 @@ async fn load_county_posts(
         priority: Option<i32>,
     }
 
-    // Fetch the county's service_area slug so we can match `service_area` tags.
-    let county_name: String =
-        sqlx::query_scalar("SELECT name FROM counties WHERE id = $1")
+    // Fetch the county's service_area slug so we can match `service_area`
+    // tags. For pseudo counties (e.g. "Statewide") we take a different
+    // path entirely — only posts explicitly tagged `statewide` or wholly
+    // ambient (no service_area at all) belong in a statewide edition.
+    let (county_name, is_pseudo): (String, bool) =
+        sqlx::query_as("SELECT name, is_pseudo FROM counties WHERE id = $1")
             .bind(county_id)
             .fetch_one(pool)
             .await?;
+
+    if is_pseudo {
+        return load_statewide_posts(period_start, pool).await;
+    }
+
     let service_area = county_service_area_slug(&county_name);
 
     let rows = sqlx::query_as::<_, PostRow>(
@@ -1352,6 +1405,85 @@ async fn load_county_posts(
     .bind(county_id)
     .bind(period_start)
     .bind(&service_area)
+    .fetch_all(pool)
+    .await?;
+
+    let post_ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let topic_tags = load_topic_tags(&post_ids, pool).await?;
+
+    let posts = rows
+        .into_iter()
+        .map(|r| {
+            let topic_slug = topic_tags.get(&r.id).cloned();
+            LayoutPost {
+                id: r.id,
+                post_type: r.post_type.unwrap_or_else(|| "update".to_string()),
+                weight: r.weight.unwrap_or_else(|| "medium".to_string()),
+                priority: r.priority.unwrap_or(50),
+                topic_slug,
+            }
+        })
+        .collect();
+
+    Ok(posts)
+}
+
+/// Load posts eligible for the Statewide pseudo-county's edition.
+///
+/// Narrower than `load_county_posts`: only pulls posts explicitly
+/// tagged `service_area = 'statewide'`, skipping every county-specific
+/// post. Posts with NO service_area tag at all are excluded here on
+/// purpose — those default into every real county's edition via the
+/// "truly ambient" fallback, and we don't want to double-count them by
+/// also surfacing them on the statewide page. If editors want a post
+/// to appear in the statewide edition, they explicitly tag it.
+///
+/// Same date-eligibility envelope as county editions (7-day window
+/// relative to period_start, plus evergreen posts and future events
+/// within an 8-week horizon).
+async fn load_statewide_posts(
+    period_start: NaiveDate,
+    pool: &PgPool,
+) -> Result<Vec<LayoutPost>> {
+    #[derive(Debug, sqlx::FromRow)]
+    struct PostRow {
+        id: Uuid,
+        post_type: Option<String>,
+        weight: Option<String>,
+        priority: Option<i32>,
+    }
+
+    let rows = sqlx::query_as::<_, PostRow>(
+        r#"
+        SELECT DISTINCT p.id, p.post_type, p.weight, p.priority
+        FROM posts p
+        WHERE p.status = 'active'
+          AND EXISTS (
+              SELECT 1 FROM taggables t
+              JOIN tags tg ON t.tag_id = tg.id
+              WHERE t.taggable_type = 'post'
+                AND t.taggable_id = p.id
+                AND tg.kind = 'service_area'
+                AND tg.value = 'statewide'
+          )
+          AND (
+            p.is_evergreen = true
+            OR p.published_at IS NULL
+            OR p.published_at >= ($1::date - INTERVAL '7 days')
+            OR EXISTS (
+              SELECT 1 FROM schedules s
+              WHERE s.schedulable_type = 'post'
+                AND s.schedulable_id = p.id
+                AND s.rrule IS NULL
+                AND s.dtstart IS NOT NULL
+                AND s.dtstart::date >= $1::date
+                AND s.dtstart::date < ($1::date + INTERVAL '8 weeks')
+            )
+          )
+        ORDER BY p.priority DESC NULLS LAST
+        "#,
+    )
+    .bind(period_start)
     .fetch_all(pool)
     .await?;
 
@@ -1604,5 +1736,211 @@ mod tests {
         let sections = build_topic_sections(&rows, &posts);
         assert_eq!(sections.len(), 1);
         assert_eq!(sections[0].topic_slug.as_deref(), Some("housing"));
+    }
+
+    // ─── fill_slot_group: cell cohesion ──────────────────────────────
+    //
+    // Harness for direct unit tests on fill_slot_group. Earlier the
+    // function had zero direct coverage; these tests lock in the
+    // behavior of the cohesion pre-pass so regressions surface in
+    // `cargo test` instead of editorial review.
+
+    use crate::domains::editions::models::post_template_config::PostTemplateConfig;
+    use crate::domains::editions::models::row_template_slot::RowTemplateSlot;
+    use chrono::Utc;
+
+    fn make_layout_post(post_type: &str, priority: i32) -> LayoutPost {
+        LayoutPost {
+            id: Uuid::new_v4(),
+            post_type: post_type.to_string(),
+            weight: "light".to_string(),
+            priority,
+            topic_slug: None,
+        }
+    }
+
+    fn make_slot(count: i32, post_template_slug: &str) -> RowTemplateSlot {
+        RowTemplateSlot {
+            id: Uuid::new_v4(),
+            row_template_config_id: Uuid::new_v4(),
+            slot_index: 0,
+            weight: "light".to_string(),
+            count,
+            count_min: count,
+            count_max: count,
+            accepts: None,
+            post_template_slug: Some(post_template_slug.to_string()),
+        }
+    }
+
+    fn make_template(slug: &str, compatible: &[&str]) -> PostTemplateConfig {
+        PostTemplateConfig {
+            id: Uuid::new_v4(),
+            slug: slug.to_string(),
+            display_name: slug.to_string(),
+            description: None,
+            compatible_types: compatible.iter().map(|s| s.to_string()).collect(),
+            body_target: 100,
+            body_max: 200,
+            title_max: 80,
+            sort_order: 0,
+            weight: "light".to_string(),
+            height_units: 2,
+            height_override: None,
+            created_at: Utc::now(),
+        }
+    }
+
+    /// Baseline: a cell sized for 3 posts, pool is all the same type
+    /// (3 updates). Cohesion is trivially satisfied; all three land in
+    /// score-priority order.
+    #[test]
+    fn fill_slot_group_homogeneous_pool_stays_in_priority_order() {
+        let slot = make_slot(3, "digest");
+        let templates = vec![make_template("digest", &["story", "update", "need"])];
+        let posts = vec![
+            make_layout_post("update", 70),
+            make_layout_post("update", 90),
+            make_layout_post("update", 80),
+        ];
+        let mut placed = vec![false; posts.len()];
+        let heights: HashMap<String, i32> = [("digest".to_string(), 2)].into_iter().collect();
+        let overrides: HashMap<(String, String), i32> = HashMap::new();
+
+        let filled = fill_slot_group(
+            &slot,
+            &posts,
+            &mut placed,
+            &templates,
+            &heights,
+            &overrides,
+            &None,
+            0,
+            "trio",
+        );
+
+        assert_eq!(filled.len(), 3);
+        assert_eq!(filled[0].post_id, posts[1].id, "highest priority first");
+        assert_eq!(filled[1].post_id, posts[2].id);
+        assert_eq!(filled[2].post_id, posts[0].id);
+    }
+
+    /// The regression this pass was built to fix.
+    ///
+    /// Pool: ONE lone dig-story at high priority + FOUR dig-updates at
+    /// lower priority. The cell holds 3 posts. Pre-cohesion behavior
+    /// put the story first (highest priority), which set group_type
+    /// to "story". With only 1 story available the soft-pref fell
+    /// through and the cell ended up mixed: story + update + update.
+    /// With cohesion, the cell starts with an update (type with most
+    /// candidates) and fills with all updates, leaving the lone story
+    /// available for a different row.
+    #[test]
+    fn fill_slot_group_prefers_type_with_most_candidates_not_highest_priority() {
+        let slot = make_slot(3, "digest");
+        let templates = vec![make_template("digest", &["story", "update"])];
+        let posts = vec![
+            make_layout_post("story", 95),   // lone high-priority story
+            make_layout_post("update", 70),
+            make_layout_post("update", 65),
+            make_layout_post("update", 60),
+            make_layout_post("update", 55),
+        ];
+        let mut placed = vec![false; posts.len()];
+        let heights: HashMap<String, i32> = [("digest".to_string(), 2)].into_iter().collect();
+        let overrides: HashMap<(String, String), i32> = HashMap::new();
+
+        let filled = fill_slot_group(
+            &slot,
+            &posts,
+            &mut placed,
+            &templates,
+            &heights,
+            &overrides,
+            &None,
+            0,
+            "trio",
+        );
+
+        assert_eq!(filled.len(), 3);
+        let filled_ids: Vec<_> = filled.iter().map(|s| s.post_id).collect();
+        assert!(!filled_ids.contains(&posts[0].id),
+            "lone story must NOT end up in this cell — it belongs elsewhere");
+        // All three filled posts should be updates.
+        for slot in &filled {
+            let p = posts.iter().find(|p| p.id == slot.post_id).unwrap();
+            assert_eq!(p.post_type, "update",
+                "cell should cohere around the majority type");
+        }
+    }
+
+    /// count_max=1 cells skip the cohesion pass entirely — a single-
+    /// post cell has nothing to cohere. Score ordering wins.
+    #[test]
+    fn fill_slot_group_single_cell_ignores_cohesion() {
+        let slot = make_slot(1, "digest");
+        let templates = vec![make_template("digest", &["story", "update"])];
+        let posts = vec![
+            make_layout_post("story", 95),
+            make_layout_post("update", 70),
+            make_layout_post("update", 65),
+        ];
+        let mut placed = vec![false; posts.len()];
+        let heights: HashMap<String, i32> = [("digest".to_string(), 2)].into_iter().collect();
+        let overrides: HashMap<(String, String), i32> = HashMap::new();
+
+        let filled = fill_slot_group(
+            &slot,
+            &posts,
+            &mut placed,
+            &templates,
+            &heights,
+            &overrides,
+            &None,
+            0,
+            "trio",
+        );
+
+        assert_eq!(filled.len(), 1);
+        assert_eq!(filled[0].post_id, posts[0].id,
+            "single-post cell picks highest-priority post (the story)");
+    }
+
+    /// When multiple types tie on count, the higher summed-priority
+    /// type wins the tiebreak. Pool: 2 stories at priority 90 each + 2
+    /// updates at 50 each, in a 2-slot cell. Stories have higher
+    /// combined score, so the cell fills with both stories.
+    #[test]
+    fn fill_slot_group_ties_broken_by_summed_priority() {
+        let slot = make_slot(2, "digest");
+        let templates = vec![make_template("digest", &["story", "update"])];
+        let posts = vec![
+            make_layout_post("story", 90),
+            make_layout_post("update", 50),
+            make_layout_post("story", 90),
+            make_layout_post("update", 50),
+        ];
+        let mut placed = vec![false; posts.len()];
+        let heights: HashMap<String, i32> = [("digest".to_string(), 2)].into_iter().collect();
+        let overrides: HashMap<(String, String), i32> = HashMap::new();
+
+        let filled = fill_slot_group(
+            &slot,
+            &posts,
+            &mut placed,
+            &templates,
+            &heights,
+            &overrides,
+            &None,
+            0,
+            "trio",
+        );
+
+        assert_eq!(filled.len(), 2);
+        for slot in &filled {
+            let p = posts.iter().find(|p| p.id == slot.post_id).unwrap();
+            assert_eq!(p.post_type, "story",
+                "tied counts, higher summed priority wins");
+        }
     }
 }
