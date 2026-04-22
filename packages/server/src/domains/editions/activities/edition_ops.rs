@@ -164,6 +164,56 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
         .ok_or_else(|| anyhow!("Edition disappeared after generation"))
 }
 
+/// Count the number of populated slots (post or widget assigned) in
+/// an edition. A slot is "populated" when either post_id or widget_id
+/// is non-NULL; empty slots (neither set) are placeholders the layout
+/// engine created but didn't fill.
+///
+/// Returned as i64 to match sqlx::query_scalar's COUNT(*) type.
+async fn count_populated_slots(
+    edition_id: Uuid,
+    pool: &sqlx::PgPool,
+) -> Result<i64> {
+    sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM edition_slots es
+        JOIN edition_rows er ON er.id = es.edition_row_id
+        WHERE er.edition_id = $1
+          AND (es.post_id IS NOT NULL OR es.widget_id IS NOT NULL)
+        "#,
+    )
+    .bind(edition_id)
+    .fetch_one(pool)
+    .await
+    .map_err(Into::into)
+}
+
+/// Guard: reject lifecycle transitions on editions with no populated
+/// slots. Without this, editors could drive an empty edition through
+/// review → approved → published, exposing a broken page on the public
+/// site (the "Aitkin 16 rows / 0 slots" state that surfaced in
+/// editorial review).
+///
+/// The gate fires on review/approve/publish. Draft stays writable so
+/// the layout engine can re-run generation. Editors should click
+/// "Regenerate layout" if their edition has empty rows; the gate
+/// prevents them from pushing the empty state forward by accident.
+async fn require_populated_edition(
+    edition_id: Uuid,
+    stage: &str,
+    pool: &sqlx::PgPool,
+) -> Result<()> {
+    let n = count_populated_slots(edition_id, pool).await?;
+    if n == 0 {
+        return Err(anyhow!(
+            "Cannot {} an edition with no populated slots. Regenerate the layout first.",
+            stage
+        ));
+    }
+    Ok(())
+}
+
 /// Transition a draft edition to in_review (editor has opened it).
 pub async fn review_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edition> {
     let pool = &deps.db_pool;
@@ -179,6 +229,7 @@ pub async fn review_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Editi
         ));
     }
 
+    require_populated_edition(edition_id, "start review on", pool).await?;
     Edition::review(edition_id, pool).await
 }
 
@@ -197,6 +248,7 @@ pub async fn approve_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edit
         ));
     }
 
+    require_populated_edition(edition_id, "approve", pool).await?;
     Edition::approve(edition_id, pool).await
 }
 
@@ -219,6 +271,7 @@ pub async fn publish_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edit
         ));
     }
 
+    require_populated_edition(edition_id, "publish", pool).await?;
     Edition::publish(edition_id, pool).await
 }
 
