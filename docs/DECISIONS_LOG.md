@@ -7,6 +7,88 @@
 
 ---
 
+## 2026-04-22 — Session: Root Signal handoff package, tag-taxonomy rework, integration commitments
+
+### Integration transport is push over HTTPS
+
+**Decision:** Root Signal pushes fully-formed post envelopes to Editorial's `POST /Posts/create_post` endpoint — Bearer token, `X-Idempotency-Key`, JSON body, 201/422 responses. Pull (Editorial polls Root Signal's GraphQL) was considered and rejected: the Signal→Editorial mapping layer encodes editorial judgement (which signal becomes which `post_type`, how `briefing_body` maps to body tiers, which dispatches become revisions) and lives better close to source data. Push also makes validation errors synchronous at submission time rather than asynchronous dead-letter queues.
+
+**Implication:** Root Signal owns an outbound HTTP client, retry loop, idempotency-key mint, and local delivery-tracking table. Editorial owns the ingest handler, structured 422 validation, org/individual dedup, and the `ServiceClient` auth extractor. Spec lives in `docs/handoff-root-signal/ROOT_SIGNAL_API_REQUEST.md` §3, §14.
+
+### Individual sources are in scope from the start, not phased
+
+**Decision:** The `source_individuals` table + consent-gated dedup ladder is built alongside the ingest endpoint — not deferred. Root Signal should not have to gate its pipeline on Editorial's schema landing "later." Individual submissions with `consent_to_publish = false` land as `in_review` until an editor clears them.
+
+**Implication:** `source_individuals (id, display_name, handle, platform, platform_url, verified_identity, consent_to_publish, consent_source, consent_captured_at)` is part of the initial ingest build. Dedup ladder mirrors orgs: `(platform, handle)` → `platform_url` → insert. Editorial returns `individual_id` on 201 so Root Signal can persist and pass back as `already_known_individual_id`.
+
+### Editorial processes media server-side, not hotlinked
+
+**Decision:** Editorial fetches each `source_image_url`, validates content by magic bytes, strips EXIF, normalises to WebP, content-hashes for dedup, and stores to MinIO. `post_media.media_id` points at the internal record; the public site renders from internal URLs. An earlier plan staged this as "hotlink first, process later" — rejected because hotlink introduces URL-expiry failures and EXIF leakage from day one.
+
+**Implication:** `source_image_url` can expire after submission without breaking the published post. Root Signal doesn't need to re-host or keep CDN URLs alive. SSRF protection (refuse localhost, private IPs, link-local, `file://`) is enforced at fetch time. Spec lives in request doc §9.
+
+### Revisions auto-reflow affected editions
+
+**Decision:** When Root Signal submits a post with `editorial.revision_of_post_id`, Editorial archives the prior post, chains the revision, and **automatically re-runs layout for any active edition that contained the old post.** An earlier plan had phased this as manual-first (editor clicks "Regenerate layout") with auto-reflow as follow-up — rejected because it bifurcates the editorial workflow and leaves stale posts in editions until someone clicks.
+
+**Implication:** Revisions flow end-to-end with no editor intervention required to get the new version into the right slot. Editors see the updated layout on next open. Spec lives in request doc §12.1.
+
+### `[signal:UUID]` citations render as inline superscripts linking to Root Signal
+
+**Decision:** Editorial parses `[signal:UUID]` tokens in body tiers at render time, producing superscript citations with popovers linking to Root Signal's public signal detail page. Configurable via env var; falls back to unlinked superscripts if the URL pattern isn't set at deploy. An earlier plan phased this as "preserve tokens as inert text in Phase 1, render in Phase 3" — collapsed into a single committed capability.
+
+**Implication:** Root Signal should preserve `[signal:UUID]` tokens when generating body tiers from `briefing_body`. The citation URL pattern is exchanged at integration kickoff, not at spec time. Spec lives in request doc §15.2.
+
+### `population` tag kind dropped entirely
+
+**Decision:** Removed `population` as a tag kind from the schema, the data contract, and the handoff docs. The kind was never seeded with a vocabulary in `data/tags.json`, and the rationale for seeding one didn't survive scrutiny: people aren't single-bucket identities. Any audience-relevance concern fits better in the open-ended `topic` tag kind where slugs can emerge organically.
+
+**Implication:** `tags.kind` CHECK constraint tightens to `('topic', 'service_area', 'safety', 'neighborhood')`. The data contract's `tags.population` row is removed. Handoff worked examples no longer set `population: []`. Tracked in `docs/TODO.md` #1.7 as part of the tag-vocabulary cleanup.
+
+### Safety tags are access-policy modifiers, not content descriptions
+
+**Decision:** Reframed the `safety` tag kind from "safety/emergency flags" (which conflated content with access) to strict access-policy modifiers — policies at a service that, if unstated, would cause someone to hesitate before seeking it. The vocabulary expanded from 3 slugs to 29, grouped by category of hesitation (identity/docs, cost, privacy, procedure, cultural affirmation, accessibility, substance use, minors, law enforcement, family logistics). Slugs like `extreme-cold-shelter` — descriptions of what the service *is*, not how it's delivered — are explicitly excluded. `know-your-rights` was dropped from safety because it's a topic/content concept, not a policy modifier.
+
+**Implication:** Safety vocabulary is closed and reserved; unknown safety slugs hard-fail on ingest. Additions propagate through the integration channel, not per-submission. Existing 3 slugs (`no_id_required`, `ice_safe`, `know_your_rights`) need normalisation to hyphen-case (`no-id-required`, `ice-safe`) and the `know-your-rights` slug migrates to topic tags. Full vocabulary in `docs/handoff-root-signal/TAG_VOCABULARY.md` §3.
+
+### Topic vocabulary is intentionally open and meant to grow
+
+**Decision:** The `topic` kind is open-ended vocabulary. Root Signal is instructed to **propose new slugs freely** whenever a post doesn't cleanly fit an existing one — Editorial auto-creates the tag and flags the post `in_review` for editor confirmation. Explicitly rejected an earlier handoff draft that said "Signal should not invent new topics lightly — prefer mapping to the nearest existing slug": this would have caused overfitting to Editorial's currently incomplete list and stifled legitimate vocabulary growth.
+
+**Implication:** Topic-tag coverage gaps in the civic-content domain are expected and treated as normal product evolution, not exceptions. The current 26-slug starter list is a floor, not a ceiling. Same logic applies to `neighborhood` (once that kind is introduced).
+
+### No legacy or retired vocabulary carried through to the handoff
+
+**Decision:** Editorial has no real data yet — this is a clean implementation, not a live system with historical rows to preserve. Any "retired tag kind" (e.g., `reserved`, `post_type`-as-a-tag, `structure`, `audience_role`) is dropped from the schema and the docs entirely. The handoff docs contain no "historical" or "legacy" framing; what's described is what exists.
+
+**Implication:** `tags.kind` CHECK constraint enforced on the final clean set. Seed data + the audit baseline regenerate accordingly. Handoff docs never mention "in schema but no longer assigned" — that framing was a mistake to preserve.
+
+### Job and Condition signals have no Editorial destination
+
+**Decision:** Editorial does not have (and is not adding) a `job` post_type. Root Signal may build a `Job` signal type for other consumers, but Job signals must not be emitted to the Editorial ingest endpoint (they would 422 on unknown `post_type`). `Condition` signals — persisting environmental state — are similarly not publishable on their own; if a Condition becomes newsworthy, package it as a `story` through a Situation. Force-fitting Jobs as `post_type: "action"` with deadline = application cutoff was considered and rejected: it flattens context and produces low-quality posts.
+
+**Implication:** Editorial's 9-type post_type taxonomy (`story`/`update`/`action`/`event`/`need`/`aid`/`person`/`business`/`reference`) is settled. Root Signal's proposed 4-type expansion (Profile → `person`, LocalBusiness → `business`, Opportunity → `action`, Job → dropped) is accepted as stated. See `docs/handoff-root-signal/TAXONOMY_EXPANSION_BRIEF.md` §2.
+
+### HMAC body signing and the feedback webhook are out of scope
+
+**Decision:** Not building HMAC body signing — Bearer token over HTTPS is sufficient for the threat model, and idempotency keys cover the replay-protection concern for this integration. Not building an Editorial → Root Signal feedback webhook on published/rejected/edited events — useful training signal for Root Signal in principle, but not required for the core integration. If either becomes valuable later, added then; not built speculatively.
+
+**Implication:** Explicit omission from the handoff docs. Neither appears in the spec as a future-phase commitment; if revisited, it's a new decision and a new spec update. Captured in `docs/TODO.md` #1.10 as "intentionally omitted."
+
+### Handoff docs are a specification, not a collaboration debate
+
+**Decision:** The Root Signal handoff docs are written as an integration specification. Every decision that was an "it depends" during drafting is committed to one side or the other — Editorial builds it, or it's a concrete ask of Root Signal with the shape they should implement. No open questions, no phased rollout plan, no "Phase 1/2/3" framing, no project timeframes. The intro framing is explicit: "this is the critical next step in Root Suite. Some interpretation of this will be implemented."
+
+**Implication:** Everything Editorial is building to match the spec lives in `docs/TODO.md` #1 as concrete subsections. `docs/status/2026_04_22_ROOT_SIGNAL_INTEGRATION_GAPS.md` tracks the internal build against the external spec. The handoff docs themselves never reference incomplete internal work — everything is presented as in place, because it will be by the time Root Signal returns with an implementation.
+
+### Rate limits and auth credentials picked, not negotiated
+
+**Decision:** 15 req/sec sustained, 50 req/sec burst per API key (token bucket). API key format `rsk_{env}_<32-char-url-safe-base64>`; stored as SHA-256 hash; rotation via overlapping keys with `rotated_from_id` chain. Issued through secure channel at integration kickoff. These were `TBD` in an earlier draft; committed rather than asked.
+
+**Implication:** Limits are calibrated for expected MN civic-content volume; tune at the operator layer based on real traffic without spec changes. `dev-cli apikey {issue,rotate,revoke,list}` is part of the ingest-endpoint build. Spec lives in request doc §14.
+
+---
+
 ## 2026-04-20 — Session: Root Signal contract, Statewide, layout polish, lifecycle gate
 
 ### Root Signal is the *producer* of posts, not an enrichment service

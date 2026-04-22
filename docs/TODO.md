@@ -1,8 +1,10 @@
 # Root Editorial — Outstanding Work
 
-> **Last updated:** 2026-04-20
+> **Last updated:** 2026-04-22
 >
 > What's done, what's next, and what's punted. This is the single source of truth for prioritization.
+>
+> **2026-04-22 additions:** Full Root Signal handoff package landed at [`docs/handoff-root-signal/`](handoff-root-signal/README.md) — API request, taxonomy expansion brief, tag vocabulary reference. Companion internal tracking in [`docs/status/2026_04_22_ROOT_SIGNAL_INTEGRATION_GAPS.md`](status/2026_04_22_ROOT_SIGNAL_INTEGRATION_GAPS.md). The queue items below for #1/#2/#3 are now individually specified with acceptance criteria in the gaps doc.
 
 ---
 
@@ -52,60 +54,108 @@
 
 Priority order. Each item unblocks the ones below it.
 
-### 1. Root Signal Ingestion Endpoint
+### 1. Root Signal Integration — All Editorial-side work the handoff assumes complete
 
-Connect the CMS to Root Signal so AI-analyzed content flows into editions automatically. Contract is settled — only the ingestion code remains.
+The handoff package at [`docs/handoff-root-signal/`](handoff-root-signal/README.md) is written as a specification to Root Signal, with all Editorial-side infrastructure presented as in place. Every item below is work we've committed to having done before Root Signal returns with the built integration. Order of implementation is roughly top-down; most items are independent.
 
-- **Contract (✅ done):** [ROOT_SIGNAL_DATA_CONTRACT.md](architecture/ROOT_SIGNAL_DATA_CONTRACT.md) — authoritative spec.
-- **Scope remaining:**
-  - Build `POST /Posts/create_post` per-post ingestion endpoint per §2 envelope
-  - Validation pass per §9 (hard failures reject 422; soft failures land as `in_review`)
-  - Dedup: resolve organization by `already_known_org_id` → website domain → exact name (contract §5.1)
-  - Wire individual-source path (contract §5.2) — requires new `source_individuals` table (see Deferred Schema Work)
-  - Optional cron / webhook trigger (cadence is an open question in the contract)
-- **Data model ready:** columns + field groups exist; need the ingest glue.
+- **Contract (✅ done):** [ROOT_SIGNAL_DATA_CONTRACT.md](architecture/ROOT_SIGNAL_DATA_CONTRACT.md) — authoritative on-the-wire spec.
+- **Handoff package (✅ done):** [ROOT_SIGNAL_API_REQUEST.md](handoff-root-signal/ROOT_SIGNAL_API_REQUEST.md), [TAXONOMY_EXPANSION_BRIEF.md](handoff-root-signal/TAXONOMY_EXPANSION_BRIEF.md), [TAG_VOCABULARY.md](handoff-root-signal/TAG_VOCABULARY.md), [handoff README](handoff-root-signal/README.md).
+- **Integration gaps doc (✅ done):** [status/2026_04_22_ROOT_SIGNAL_INTEGRATION_GAPS.md](status/2026_04_22_ROOT_SIGNAL_INTEGRATION_GAPS.md) — internal punch list with dependencies.
 
-### 2. Individual-Source Schema (blocks Signal ingestion for `source.kind='individual'`)
+#### 1.1 Ingest endpoint (core build)
 
-Contract §5.2 assumes a `source_individuals` table that doesn't exist yet.
+- New ingest-compliant handler. Current `POST /Posts/create_post` at `packages/server/src/api/routes/posts.rs:1513-1532` is a 7-field admin stub; replace with a handler accepting the full envelope in [ROOT_SIGNAL_DATA_CONTRACT.md](architecture/ROOT_SIGNAL_DATA_CONTRACT.md) §2.
+- `ServiceClient` auth extractor in `packages/server/src/api/auth.rs`. Machine-token Bearer validation (hash lookup, scope check, last_used_at update). Scope: `posts:create`.
+- `api_keys` table: `id`, `client_name`, `prefix`, `token_hash`, `scopes[]`, `rotated_from_id`, `created_at`, `revoked_at`, `last_used_at`. Partial index on `token_hash` where `revoked_at IS NULL`.
+- `dev-cli apikey` subcommands: `issue`, `rotate`, `revoke`, `list`. Token format: `rsk_{env}_<32-char-url-safe-base64>`. Plaintext shown once at issuance; only SHA-256 stored.
+- `ApiError::Validation(Vec<FieldError>)` variant returning structured 422 body per handoff §11. Extend `packages/server/src/api/error.rs`.
+- `api_idempotency_keys` table: `key UUID PK`, `api_key_id`, `payload_hash`, `response_status`, `response_body JSONB`, `created_at`. Canonicalised SHA-256 comparison (sorted keys, whitespace stripped). Hourly cleanup job deletes rows older than 24h.
+- Organisation dedup ladder activity per handoff §7.1: `already_known_org_id` → website domain match → exact name match → insert.
+- `source_individuals` table + individual dedup ladder per handoff §7.2: `(platform, handle)` → `platform_url` → insert. Consent-gated (`consent_to_publish = false` → `in_review`).
+- Editor-only field rejection on ingest path: reject submissions that set `is_urgent`, `pencil_mark`, or `status`.
+- Tag resolution across all kinds (topic / service_area / safety / population). Unknown `service_area` and `safety` hard-fail; unknown `topic` and `population` auto-create and flag `in_review`.
+- Populate `service_areas` and `post_locations` tables alongside tag rows (currently dead weight — exist from migration 000107 but never populated).
+- Return `post_id`, `organization_id`, `individual_id`, `idempotency_key_seen_before` on 201.
 
-- **Scope:** Migration for `source_individuals (id, display_name, handle, platform, platform_url, verified_identity, consent_to_publish, …)` + `post_sources.source_id` polymorphic extension to point at it. Consent-pending ingestion flow (posts land as `in_review` until editor confirms).
+#### 1.2 Media pipeline (handoff assumes live from day one)
 
-### 3. Signal Inbox
+- Server-side fetch of `source_image_url`: 5s timeout, 5 MiB cap, follow redirects, HTTPS-only, SSRF guards (refuse localhost, private IPs, link-local, `file://`).
+- Magic-bytes validation (JPEG/PNG/WebP/AVIF).
+- EXIF strip + WebP normalisation (quality 85).
+- SHA-256 content-hash dedup against existing `media` rows.
+- Store to MinIO under `media/{yyyy}/{mm}/{uuid}.webp`; populate `post_media.media_id`.
+- Spec: [ROOT_SIGNAL_MEDIA_INGEST.md](guides/ROOT_SIGNAL_MEDIA_INGEST.md).
 
-Triage UI for incoming Root Signal content.
+#### 1.3 Signal Inbox admin UI
 
-- **Plan:** [SIGNAL_INBOX.md](architecture/SIGNAL_INBOX.md)
-- **Depends on:** Story Editor (✅ done), Root Signal ingestion (#1) for real data
-- **Scope:** Admin page with filtered post list, bulk approve/reject, edit-before-approve flow
+- `/admin/signal-inbox` page listing posts with `status = in_review`.
+- Group by flag reason: `source_stale`, `low_confidence`, `possible_duplicate`, `individual_no_consent`, `deck_missing_on_heavy`, etc.
+- Per-post actions: approve (→ `active`), reject (→ `rejected`), open-for-edit, merge-if-duplicate.
+- Side-by-side view: extracted payload + source URL.
+- Plan: [SIGNAL_INBOX.md](architecture/SIGNAL_INBOX.md).
 
-### 4. Media Ingest Pipeline
+#### 1.4 Revision auto-reflow
 
-Contract §8 + [ROOT_SIGNAL_MEDIA_INGEST.md](guides/ROOT_SIGNAL_MEDIA_INGEST.md) design. Not built. Blocks the remaining 11 seed-audit gaps (`media:no_hero_on_heavy` + `type_group:person_missing_media`).
+- On ingest with `revision_of_post_id`: archive prior post, chain revision, **and auto-reflow any active edition that contained it.** Reflow runs the layout engine against the edition's slot configuration; editor sees the updated layout when they next open the edition. No manual "regenerate" click required.
 
-- **Scope:** Server-side fetch of `source_image_url` → MinIO upload → create `media` row → link via `post_media.media_id`. Hash-based dedup. Size cap + magic-bytes validation. Optional format normalization (convert all → WebP?).
-- **Open questions in spec:** dedup strategy, license propagation, retry-on-failure semantics.
+#### 1.5 Content-hash dedup on posts
 
-### 5. Fresh Week Batch Generation Cron
+- `posts.content_hash TEXT` column + index. Hash function: SHA-256 over normalised title + `source_url` + day-bucket(published_at) + sorted service_area slugs.
+- On ingest, if hash matches an existing row, refresh that row's `published_at` (extends 7-day eligibility) and return its `post_id` with a stored response. No duplicate insert.
+- Internal protection against sources that produce slightly-different-but-same content across scrapes.
+- Design: [POST_EDITION_LIFECYCLE.md](guides/POST_EDITION_LIFECYCLE.md) §"Dedup options".
+
+#### 1.6 Citation rendering
+
+- Parse `[signal:UUID]` tokens in `body_raw` / `body_heavy` / `body_medium` at render time.
+- Render as superscript citations (`[1]`, `[2]`, …) with popovers showing signal title + source URL + summary.
+- Link target: configurable via env var (Signal provides URL pattern at kickoff; we default to `https://signal.example.com/signals/<uuid>`).
+- Graceful fallback if URL pattern is empty: show citation as unlinked superscript.
+
+#### 1.7 Tag vocabulary cleanup + expansion (before handoff is acted upon)
+
+- **Drop the `population` tag kind entirely.** People aren't single-bucket identities, and anything the kind was trying to capture fits better in open-ended topic tags. Remove the kind from the schema, drop any seeded rows, and remove `population` from the CHECK constraint on `tags.kind`.
+- **Clean up topic vocabulary.** `data/tags.json` topic kind currently mixes in neighborhood slugs and a category slug (`brooklyn-center`, `phillips`, `north-minneapolis`, `lake-street`, `south-metro`, `restaurant`). Move neighborhood slugs to a new `neighborhood` tag kind or drop entirely; drop `restaurant` (business posts use `post_type=business`, not a topic tag). Add `public-works` which is used in seed but undeclared.
+- **Rework the safety vocabulary as access-policy modifiers**, per handoff [`TAG_VOCABULARY.md`](handoff-root-signal/TAG_VOCABULARY.md) §3. The three existing slugs (`no_id_required`, `ice_safe`, `know_your_rights`) become `no-id-required`, `ice-safe` (keep); `know-your-rights` drops (it's a content/topic concept, not a policy modifier) — migrate any references to `topic` tags. Seed the full expanded vocabulary (~29 slugs across identity-and-documentation, cost, privacy, procedure, cultural affirmation, accessibility, substance use, minors, law enforcement, and family logistics). See the handoff doc for the authoritative list.
+- **Normalise safety slugs to hyphen-case** (currently underscore-case): `no_id_required` → `no-id-required`, etc. All other tag kinds already use hyphens.
+- Update seed posts in `data/posts.json` to reference the cleaned-up topic slugs.
+- Re-run `make audit-seed --rebaseline` to update the audit baseline.
+
+#### 1.8 Tag kind constraint cleanup
+
+- Update `tags.kind` CHECK constraint to the final set: `CHECK (kind IN ('topic', 'service_area', 'safety', 'neighborhood'))` — no population, no retired kinds.
+- Drop any tag rows under retired kinds (`reserved`, `post_type`, `structure`, `audience_role`). No real data yet; clean implementation, no legacy baggage.
+
+#### 1.9 Route path and convention cleanup
+
+- Confirm `/Posts/create_post` convention documented in CLAUDE.md (capital-P `/{Service}/{handler}`) is still the standard. No blockers here; just noting the cross-reference.
+
+#### 1.10 Assumptions we're not building (intentionally omitted from handoff)
+
+- **HMAC body signing.** Bearer token over HTTPS is sufficient for the threat model. If we later need replay protection beyond what idempotency keys provide, we add HMAC then.
+- **Feedback webhook to Signal.** Editorial → Signal lifecycle notifications (published / rejected / edited) would be useful as training signal for them, but they don't need it to build the ingest integration. Out of scope for this cycle.
+- **Rate-limit auto-tuning / per-day quotas.** Start with 15/50 req/sec token bucket; adjust empirically.
+
+### 2. Fresh Week Batch Generation Cron
 
 Currently the only way to get a new week's editions generated is to click the dashboard CTA. For an unattended deploy we need a scheduled task that runs every Sunday night to prep the next Mon–Sun period's editions across every county (incl. Statewide).
 
 - **Scope:** Scheduled task (Rust-side or container cron) invoking `batch_generate_editions`. Must be idempotent — re-running mid-week shouldn't clobber editor edits. The activity's existing status-check already gates this, but verify under real cron conditions.
 
-### 6. Bulk Actions on the Editions List View
+### 3. Bulk Actions on the Editions List View
 
 Dashboard has "Publish all N approved"; `/admin/editions` list doesn't. Nice-to-have second surface for editors who filter the list first.
 
 - **Scope:** Multi-select on the editions table; bulk `publishEdition` loop (same shape as the dashboard handler); probably bulk `archiveEdition` too.
 
-### 7. IP Geolocation for County Picker Default (Phase D — deferred)
+### 4. IP Geolocation for County Picker Default (deferred)
 
 Public home defaults to the Statewide pseudo-county when the URL is bare. Better: auto-select a county based on the visitor's IP for MN visitors; fall back to Statewide otherwise.
 
 - **Scope:** Pick a backend (MaxMind GeoLite2 / ipinfo.io / Cloudflare `CF-IPCountry`+`CF-Region` headers if we deploy behind CF). Server-side resolver that maps IP → county row.
 - **Blocked on:** Infrastructure / vendor decision.
 
-### 8. Post Detail Page Polish
+### 5. Post Detail Page Polish
 
 Core detail layout done (NewspaperFrame, ArticlePage, field group components, related posts, SiteFooter). Remaining:
 
@@ -113,7 +163,7 @@ Core detail layout done (NewspaperFrame, ArticlePage, field group components, re
 - **Mobile responsive** — detail page should stack sidebar below main on mobile
 - **Post click navigation** — broadsheet homepage cards may not link to detail yet
 
-### 9. Seed Missing Row Templates
+### 6. Seed Missing Row Templates
 
 Prototype defines 31 proven row templates (RT-01 through RT-31) plus 14 additional combinations. Implementation has ~20 row templates across 5 active layout variants.
 
@@ -142,11 +192,11 @@ Prototype defines 31 proven row templates (RT-01 through RT-31) plus 14 addition
 
 Additive work — seed migrations only for templates where components already exist.
 
-### 10. Image Widget Type
+### 7. Image Widget Type
 
 Add `image` widget type. Fields: `src`, `alt`, `caption`, `credit`. Referenced in prototype RT-02 (Photo Essay) but never implemented. Distinct from post media — these are editorial images placed by the layout editor that aren't associated with a post.
 
-### 11. Integration Tests
+### 8. Integration Tests
 
 Project-wide gap. CLAUDE.md mandates TDD and API-edge testing but no test harness exists.
 
@@ -165,7 +215,9 @@ Things surfaced in this session that don't warrant full queue entries.
 | Item | Notes |
 |------|-------|
 | Aitkin edition `8e564469-60c6-4fdd-89c7-f7a38c1a2206` is `approved` with 0 slots. | Pre-existing data artifact from before the Phase C gate. Remediation: click "Regenerate Layout" in its admin page, or run a one-line SQL to reset its status to `draft`. Will drop out of the dashboard approved-count either way. |
-| Local `main` is 25 commits ahead of `origin/main`. | Push when ready. |
+| Root Signal's proposed `Condition` signal type has no direct Editorial `post_type` mapping. | Resolved as "drop unless newsworthy, in which case map to `story`" in request doc §15.1. Revisit if Signal produces significant Condition volume. |
+| Root Signal's proposed `Job` signal may need a new Editorial `job` post_type. | Three options in request doc §17 Q9: add new type, map to `action`, or defer. Decide during Phase 2 scoping. |
+| Schema/seed drift: `post_locations`, `service_areas`, polymorphic `schedules` tables exist (migration 000107) but seed populates via tags instead. | Gaps doc §1.8. Recommendation is to populate both on ingest as secondary indices. 1 day of work. |
 | `DATA_CONTRACT.md` §12 open questions are still open. | Cadence (weekly / stream / webhook), extraction-confidence threshold tuning, multi-county-scope tag-spray, image licensing policy, byline-vs-attribution edge cases, priority feedback loop to Signal. Punted until ingestion (#1) is being wired. |
 | 11 seed posts still have media-related audit gaps. | All gated on the media ingest pipeline (#4). |
 

@@ -69,6 +69,7 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 - [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
 - [Testing Guide](guides/TESTING_GUIDE.md) - Test-driven development + API-edge testing guide
 - [Post ↔ Edition Lifecycle](guides/POST_EDITION_LIFECYCLE.md) - How posts become eligible for editions, multi-edition reuse, and the Root Signal dedup design
+- [Root Signal Handoff Package](handoff-root-signal/README.md) - **Definitive** bundle handed to the Root Signal team: API request (full field contract, 9-type matrix, worked examples, phased delivery), taxonomy expansion brief, tag vocabulary reference
 - [Root Signal Ingest Spec](guides/ROOT_SIGNAL_INGEST_SPEC.md) - ⚠️ Superseded by ROOT_SIGNAL_DATA_CONTRACT — kept for history
 - [Root Signal Media Ingest](guides/ROOT_SIGNAL_MEDIA_INGEST.md) - Design proposal: fetch + store external images on ingest (not built)
 - [Seed Data Enrichment Plan](guides/SEED_DATA_ENRICHMENT_PLAN.md) - Plan to bring `data/posts.json` up to the data-contract bar (pending execution)
@@ -92,6 +93,7 @@ Architectural decisions and the reasoning behind them. Read this before re-evalu
 - [Phase 3: Edition System](status/PHASE_3_EDITION_SYSTEM.md) ✅
 - [Phase 4: CMS UX Rework](status/PHASE4_CMS_UX_REWORK.md) ✅ (frontend complete)
 - [Broadsheet Design Import](status/BROADSHEET_DESIGN_IMPORT.md) ✅
+- [Root Signal Integration Gaps (2026-04-22)](status/2026_04_22_ROOT_SIGNAL_INTEGRATION_GAPS.md) - Internal punch list companion to the Root Signal API request; enumerates every Editorial-side gap blocking Phase 1, with effort estimates and dependency graph
 - [Final Schema Summary](status/FINAL_SCHEMA_SUMMARY.md)
 - [Turbopack CPU Loop Postmortem](status/TURBOPACK_CPU_LOOP_POSTMORTEM.md)
 - [Docker Stale Dependencies Postmortem](status/DOCKER_STALE_DEPS_POSTMORTEM.md)

@@ -140,9 +140,8 @@ Grouped by concern. "Req" column: **Y** = required on every post; **C** = condit
 
 | Field | Req | Type | Shape / rules |
 |---|---|---|---|
-| `tags.topic` | Y | string[] | At least one topic from the allowed set in `data/tags.json`. Drives topic-grouping in editions. |
-| `tags.population` | N | string[] | Audience tags (`youth`, `seniors`, `immigrant-families`, etc.). |
-| `tags.safety` | N | string[] | Safety/emergency flags (`ice-resistance`, `sanctuary-resource`, etc.). |
+| `tags.topic` | Y | string[] | At least one topic from the open vocabulary in `data/tags.json`. Unknown slugs auto-create and land the post `in_review`; the vocabulary is expected to grow. |
+| `tags.safety` | N | string[] | Access-policy modifiers — reserved vocabulary (e.g., `no-id-required`, `ice-safe`, `sliding-scale`, `confidential`). See `docs/handoff-root-signal/TAG_VOCABULARY.md` §3 for the canonical list. |
 
 ### 3.6 Source (see §5 for full treatment)
 
