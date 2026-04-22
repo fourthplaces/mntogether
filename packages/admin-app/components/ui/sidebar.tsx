@@ -510,6 +510,26 @@ function SidebarMenuButton({
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar()
+
+  // Defer Tooltip mounting until after hydration. Base UI's TooltipTrigger
+  // generates a React.useId-based id for ARIA wiring, and those ids diverge
+  // between server and client renders in this tree (possibly due to the
+  // Suspense boundary / urql query in AdminSidebar shifting the useId
+  // counter). The result was a "This won't be patched up" hydration
+  // warning on every sidebar menu button.
+  //
+  // Tooltips on the sidebar are only meaningful when the sidebar is
+  // collapsed to icons-only (TooltipContent is `hidden` when expanded),
+  // so skipping the wrapper during SSR and the first client render has
+  // no user-visible effect. After useEffect runs, tooltips hydrate onto
+  // a post-hydration tree with fresh, internally-consistent ids.
+  const [mounted, setMounted] = React.useState(false)
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const withTooltip = Boolean(tooltip) && mounted
+
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
@@ -518,7 +538,7 @@ function SidebarMenuButton({
       },
       props
     ),
-    render: !tooltip ? render : <TooltipTrigger render={render} />,
+    render: withTooltip ? <TooltipTrigger render={render} /> : render,
     state: {
       slot: "sidebar-menu-button",
       sidebar: "menu-button",
@@ -527,15 +547,12 @@ function SidebarMenuButton({
     },
   })
 
-  if (!tooltip) {
+  if (!withTooltip) {
     return comp
   }
 
-  if (typeof tooltip === "string") {
-    tooltip = {
-      children: tooltip,
-    }
-  }
+  const tooltipProps: React.ComponentProps<typeof TooltipContent> =
+    typeof tooltip === "string" ? { children: tooltip } : tooltip!
 
   return (
     <Tooltip>
@@ -544,7 +561,7 @@ function SidebarMenuButton({
         side="right"
         align="center"
         hidden={state !== "collapsed" || isMobile}
-        {...tooltip}
+        {...tooltipProps}
       />
     </Tooltip>
   )

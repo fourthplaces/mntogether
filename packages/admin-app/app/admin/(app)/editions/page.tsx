@@ -28,7 +28,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
-import { Clock } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  CircleDashed,
+  CircleDot,
+  Clock,
+  Minus,
+} from "lucide-react";
 
 // ─── Week helpers ────────────────────────────────────────────────────────────
 
@@ -103,24 +111,50 @@ const STATUS_FILTERS = [
 // ─── Freshness indicators ────────────────────────────────────────────────────
 
 function FreshnessIndicator({ isStale, status }: { isStale: boolean; status?: string }) {
+  // One Lucide icon per state; no unicode glyphs. `title` still
+  // carries the human-readable label for hover.
+  const iconProps = { className: "size-4", "aria-hidden": true } as const;
+
   if (!status) {
-    // No edition at all
-    return <span className="text-muted-foreground" title="No edition">—</span>;
+    return (
+      <span className="text-muted-foreground inline-flex" title="No edition">
+        <Minus {...iconProps} />
+      </span>
+    );
   }
   if (status === "published" && !isStale) {
-    return <span className="text-green-600" title="Published (current)">✓</span>;
+    return (
+      <span className="text-green-600 inline-flex" title="Published (current)">
+        <CheckCircle2 {...iconProps} />
+      </span>
+    );
   }
   if (isStale) {
-    return <span className="text-amber-600" title="Stale">⚠</span>;
+    return (
+      <span className="text-amber-600 inline-flex" title="Stale">
+        <AlertTriangle {...iconProps} />
+      </span>
+    );
   }
   if (status === "approved") {
-    return <span className="text-emerald-600" title="Approved">●</span>;
+    return (
+      <span className="text-emerald-600 inline-flex" title="Approved">
+        <CircleDot {...iconProps} />
+      </span>
+    );
   }
   if (status === "in_review") {
-    return <span className="text-amber-500" title="Reviewing">●</span>;
+    return (
+      <span className="text-amber-500 inline-flex" title="Reviewing">
+        <CircleDashed {...iconProps} />
+      </span>
+    );
   }
-  // draft
-  return <span className="text-muted-foreground" title="Draft">○</span>;
+  return (
+    <span className="text-muted-foreground inline-flex" title="Draft">
+      <Circle {...iconProps} />
+    </span>
+  );
 }
 
 // ─── Status pill ─────────────────────────────────────────────────────────────
