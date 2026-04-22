@@ -501,6 +501,18 @@ export const postResolvers = {
       return true;
     },
 
+    setPrimaryPostSource: async (
+      _parent: unknown,
+      args: { postId: string; postSourceId: string },
+      ctx: GraphQLContext,
+    ) => {
+      await ctx.server.callService("Post", `${args.postId}/set_primary_source`, {
+        post_source_id: args.postSourceId,
+      });
+      ctx.loaders.postById.clear(args.postId);
+      return true;
+    },
+
   },
 
   PublicPost: {
@@ -630,6 +642,44 @@ export const postResolvers = {
     relatedPosts: async (parent: { id: string; relatedPosts?: unknown[] }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.relatedPosts) return parent.relatedPosts;
       return ctx.server.callService("Post", `${parent.id}/related`, {});
+    },
+
+    // Admin Sources panel feed — full citation list for a post.
+    // Lazy-loaded so non-admin callers don't pay for it.
+    sources: async (
+      parent: { id: string; sources?: unknown[] },
+      _args: unknown,
+      ctx: GraphQLContext,
+    ) => {
+      if (parent.sources) return parent.sources;
+      const res = await ctx.server.callService<{ sources: unknown[] }>(
+        "Post",
+        `${parent.id}/sources`,
+        {},
+      );
+      return (res.sources ?? []).map((s) => {
+        const r = s as Record<string, unknown>;
+        return {
+          id: r.id,
+          sourceUrl: r.source_url ?? r.sourceUrl ?? null,
+          kind: r.kind,
+          organizationId: r.organization_id ?? r.organizationId ?? null,
+          organizationName: r.organization_name ?? r.organizationName ?? null,
+          individualId: r.individual_id ?? r.individualId ?? null,
+          individualDisplayName:
+            r.individual_display_name ?? r.individualDisplayName ?? null,
+          retrievedAt: r.retrieved_at ?? r.retrievedAt ?? null,
+          contentHash: r.content_hash ?? r.contentHash ?? null,
+          snippet: r.snippet ?? null,
+          confidence: r.confidence ?? null,
+          platformId: r.platform_id ?? r.platformId ?? null,
+          platformPostTypeHint:
+            r.platform_post_type_hint ?? r.platformPostTypeHint ?? null,
+          isPrimary: Boolean(r.is_primary ?? r.isPrimary ?? false),
+          firstSeenAt: r.first_seen_at ?? r.firstSeenAt ?? null,
+          lastSeenAt: r.last_seen_at ?? r.lastSeenAt ?? null,
+        };
+      });
     },
   },
 };

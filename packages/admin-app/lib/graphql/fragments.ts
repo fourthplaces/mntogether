@@ -129,6 +129,24 @@ export const PostDetailFields = graphql(`
       opens
       closes
     }
+    sources {
+      id
+      sourceUrl
+      kind
+      organizationId
+      organizationName
+      individualId
+      individualDisplayName
+      retrievedAt
+      contentHash
+      snippet
+      confidence
+      platformId
+      platformPostTypeHint
+      isPrimary
+      firstSeenAt
+      lastSeenAt
+    }
   }
 `);
 

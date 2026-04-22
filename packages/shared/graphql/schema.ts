@@ -116,6 +116,10 @@ type Mutation {
   upsertPostPerson(postId: ID!, name: String, role: String, bio: String, photoUrl: String, quote: String, photoMediaId: ID): Boolean!
   upsertPostLink(postId: ID!, label: String, url: String, deadline: String): Boolean!
   upsertPostSourceAttr(postId: ID!, sourceName: String, attribution: String): Boolean!
+  """Mark a post_sources row as the primary citation. Updates the
+  post's public attribution to match the chosen source's organisation
+  name / individual display name. Admin-only."""
+  setPrimaryPostSource(postId: ID!, postSourceId: ID!): Boolean!
   upsertPostDatetime(postId: ID!, startAt: String, endAt: String, cost: String, recurring: Boolean): Boolean!
   upsertPostStatus(postId: ID!, state: String, verified: String): Boolean!
   upsertPostItems(postId: ID!, items: [PostItemInput!]!): Boolean!
@@ -275,6 +279,44 @@ type Post {
   # Every edition this post is currently slotted into. One entry per
   # edition_slots row. See PostEditionSlotting for the per-edition shape.
   editionSlottings: [PostEditionSlotting!]!
+  # Every post_sources row for this post, with joined organisation /
+  # individual metadata. Admin-only — reads through the server's
+  # /Post/{id}/sources endpoint which requires AdminUser. Powers the
+  # admin Sources panel. See Addendum 01 §2 for the per-citation shape.
+  sources: [PostSource!]!
+}
+
+"""
+One entry in the admin Sources panel — a single post_sources row
+joined with its source metadata. Populated from post_sources plus
+either organizations or source_individuals depending on kind.
+
+Fields marked (WT3) are populated by the post_sources column additions
+in Worktree 3's migration (content_hash, snippet, confidence,
+platform_id, platform_post_type_hint). Until that migration lands they
+resolve to null; the shape is already here so the admin UI is ready.
+"""
+type PostSource {
+  id: ID!
+  sourceUrl: String
+  """organization | individual"""
+  kind: String!
+  organizationId: ID
+  organizationName: String
+  individualId: ID
+  individualDisplayName: String
+  retrievedAt: String
+  contentHash: String
+  snippet: String
+  confidence: Int
+  platformId: String
+  platformPostTypeHint: String
+  """True for the citation currently used as the post's public
+  attribution. See Addendum 01 §2.1 for the relationship between the
+  primary post_sources row and post_source_attribution."""
+  isPrimary: Boolean!
+  firstSeenAt: String
+  lastSeenAt: String
 }
 
 """

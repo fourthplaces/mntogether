@@ -15,6 +15,8 @@ import { PhoneA, PhoneB } from "./Phone";
 import { KickerA, KickerB } from "./Kicker";
 import { ArticleMeta } from "./ArticleMeta";
 import { AudioA, AudioB } from "./Audio";
+import { CitationText } from "./Citation";
+import { CitationIndex } from "@/lib/broadsheet/citations";
 
 // ---------------------------------------------------------------------------
 // Types — minimal subset of Plate.js AST
@@ -75,9 +77,15 @@ function isText(node: AstNode): node is AstText {
 // Text renderer — handles marks
 // ---------------------------------------------------------------------------
 
-function renderText(node: AstText, key: number): React.ReactNode {
-  let content: React.ReactNode = node.text;
-  if (!content) return null;
+function renderText(node: AstText, key: number, citationIndex?: CitationIndex): React.ReactNode {
+  if (!node.text) return null;
+
+  // Parse inline [signal:UUID] tokens before applying marks so the
+  // superscript cites are nested inside any bold / italic / etc.
+  let content: React.ReactNode =
+    citationIndex && node.text.includes("[signal:")
+      ? <CitationText text={node.text} index={citationIndex} />
+      : node.text;
 
   if (node.bold) content = <strong key={`b-${key}`}>{content}</strong>;
   if (node.italic) content = <em key={`i-${key}`}>{content}</em>;
@@ -92,16 +100,16 @@ function renderText(node: AstText, key: number): React.ReactNode {
 // Element renderer
 // ---------------------------------------------------------------------------
 
-function renderChildren(children?: AstNode[]): React.ReactNode {
+function renderChildren(children: AstNode[] | undefined, citationIndex?: CitationIndex): React.ReactNode {
   if (!children) return null;
   return children.map((child, i) => {
-    if (isText(child)) return renderText(child, i);
-    return renderElement(child, i);
+    if (isText(child)) return renderText(child, i, citationIndex);
+    return renderElement(child, i, citationIndex);
   });
 }
 
-function renderElement(node: AstElement, key: number): React.ReactNode {
-  const children = renderChildren(node.children);
+function renderElement(node: AstElement, key: number, citationIndex?: CitationIndex): React.ReactNode {
+  const children = renderChildren(node.children, citationIndex);
 
   switch (node.type) {
     // Standard block elements
@@ -249,14 +257,21 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
 interface AstRendererProps {
   value: AstNode[];
   className?: string;
+  /**
+   * Shared citation registry for `[signal:UUID]` tokens in text
+   * nodes. Pass a single instance spanning the whole body render so
+   * numbering is stable. When omitted, citations render as literal
+   * text.
+   */
+  citationIndex?: CitationIndex;
 }
 
-export function AstRenderer({ value, className = "body-a" }: AstRendererProps) {
+export function AstRenderer({ value, className = "body-a", citationIndex }: AstRendererProps) {
   return (
     <div className={className}>
       {value.map((node, i) => {
-        if (isText(node)) return renderText(node, i);
-        return renderElement(node, i);
+        if (isText(node)) return renderText(node, i, citationIndex);
+        return renderElement(node, i, citationIndex);
       })}
     </div>
   );

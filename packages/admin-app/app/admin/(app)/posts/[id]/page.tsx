@@ -27,6 +27,7 @@ import {
   UpsertPostMediaMutation,
   UpsertPostPersonMutation,
   UpsertPostItemsMutation,
+  SetPrimaryPostSourceMutation,
 } from "@/lib/graphql/posts";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 
@@ -72,6 +73,7 @@ export default function PostDetailPage() {
   const [, upsertMedia] = useMutation(UpsertPostMediaMutation);
   const [, upsertPerson] = useMutation(UpsertPostPersonMutation);
   const [, upsertItems] = useMutation(UpsertPostItemsMutation);
+  const [, setPrimaryPostSource] = useMutation(SetPrimaryPostSourceMutation);
 
   // Tag data
   const [{ data: kindsData }] = useQuery({ query: TagKindsQuery });
@@ -215,6 +217,8 @@ export default function PostDetailPage() {
       upsertSourceAttr({ postId, ...input }, mutationContext),
     upsertStatus: async (input: { state: string | null; verified: string | null }) =>
       upsertPostStatus({ postId, ...input }, mutationContext),
+    setPrimarySource: async (postSourceId: string) =>
+      setPrimaryPostSource({ postId, postSourceId }, mutationContext),
   };
 
   const onSaveMedia = async (input: { imageUrl: string | null; caption: string | null; credit: string | null; mediaId: string | null }) =>

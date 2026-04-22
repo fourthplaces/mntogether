@@ -28,8 +28,10 @@ use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWit
 use crate::domains::posts::models::Post;
 use crate::domains::posts::models::{
     PostMediaRecord, PostMetaRecord, PostPersonRecord, PostLinkRecord,
-    PostSourceAttr, PostDatetimeRecord, PostStatusRecord,
+    PostSource, PostSourceAttr, PostSourceEnriched, PostDatetimeRecord,
+    PostStatusRecord,
 };
+use crate::common::PostSourceId;
 use crate::domains::schedules::models::Schedule;
 use crate::domains::tag::models::tag::Tag;
 use crate::kernel::ServerDeps;
@@ -2173,6 +2175,83 @@ async fn get_edition_slottings(
     Ok(Json(PostEditionSlottingsResult { slottings }))
 }
 
+// =============================================================================
+// Admin Sources panel — list every post_sources citation for a post
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct PostSourcesResult {
+    pub sources: Vec<PostSourceEnriched>,
+}
+
+/// Every `post_sources` row for the post, joined with organisation
+/// (and eventually individual, per Addendum 01) metadata. Admin-only;
+/// feeds the admin Sources panel on the post detail page.
+async fn get_post_sources(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+) -> ApiResult<Json<PostSourcesResult>> {
+    let sources = PostSource::find_enriched_by_post(
+        PostId::from_uuid(post_id),
+        &state.deps.db_pool,
+    )
+    .await?;
+    Ok(Json(PostSourcesResult { sources }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPrimarySourceRequest {
+    pub post_source_id: Uuid,
+}
+
+/// Reassign a post's primary citation. Looks up the chosen
+/// `post_sources` row and writes its organisation name / URL to
+/// `post_source_attribution`, which is what the public detail page
+/// renders as the credit line. When Worktree 3's `is_primary` column
+/// lands, this handler should also flip the boolean on the
+/// `post_sources` rows; until then the derivation in
+/// [`PostSource::find_enriched_by_post`] matches back via
+/// `source_name`.
+async fn set_primary_source(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<SetPrimarySourceRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+
+    let info = PostSource::find_attribution_info(
+        PostSourceId::from_uuid(req.post_source_id),
+        pool,
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound("post_source not found".into()))?;
+
+    let (org_name, source_url) = info;
+    // Prefer the org name (human-readable) as source_name; fall back
+    // to the URL when there's no org attached yet.
+    let source_name = org_name.or(source_url);
+
+    // Don't overwrite the curated attribution line — preserve the
+    // existing value if one's already been written.
+    let existing_attribution = PostSourceAttr::find_by_post_ids(&[post_id], pool)
+        .await?
+        .into_iter()
+        .next()
+        .and_then(|r| r.attribution);
+
+    PostSourceAttr::upsert(
+        post_id,
+        source_name.as_deref(),
+        existing_attribution.as_deref(),
+        pool,
+    )
+    .await?;
+
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
 async fn get_field_groups(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2483,6 +2562,9 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/related", post(get_related_posts))
         // Edition slottings (read-only, admin)
         .route("/Post/{id}/edition_slottings", post(get_edition_slottings))
+        // Sources panel (admin)
+        .route("/Post/{id}/sources", post(get_post_sources))
+        .route("/Post/{id}/set_primary_source", post(set_primary_source))
         // Field groups
         .route("/Post/{id}/field_groups", post(get_field_groups))
         .route("/Post/{id}/upsert_media", post(upsert_post_media))

@@ -340,3 +340,9 @@ export const UpsertPostItemsMutation = graphql(`
   }
 `);
 
+export const SetPrimaryPostSourceMutation = graphql(`
+  mutation SetPrimaryPostSource($postId: ID!, $postSourceId: ID!) {
+    setPrimaryPostSource(postId: $postId, postSourceId: $postSourceId)
+  }
+`);
+

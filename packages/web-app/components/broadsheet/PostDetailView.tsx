@@ -18,10 +18,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
 
 import { resolveDetailVariants } from "@/lib/broadsheet/detail-variants";
 import { formatPostDate, formatDeadline as formatDeadlineMN } from "@/lib/broadsheet/dates";
+import { CitationIndex } from "@/lib/broadsheet/citations";
+import { CitationMarkdown } from "@/components/broadsheet/detail/Citation";
 
 import { NewspaperFrame } from "@/components/broadsheet/layout/NewspaperFrame";
 import { ArticlePage } from "@/components/broadsheet/detail/ArticlePage";
@@ -241,59 +242,34 @@ export function PostDetailView({ post, banner }: Props) {
         />
       )}
 
-      {post.bodyAst
-        ? (() => {
-            try {
-              const ast = JSON.parse(post.bodyAst);
-              const BodyWrapper = variants.bodyVariant === "B" ? BodyB : BodyA;
-              return (
-                <BodyWrapper>
-                  <AstRenderer value={ast} className="" />
-                </BodyWrapper>
-              );
-            } catch {
-              return null;
-            }
-          })()
-        : post.bodyRaw
-          ? variants.bodyVariant === "B"
-            ? (
-              <BodyB>
-                <ReactMarkdown
-                  components={{
-                    a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer">
-                        {children}
-                      </a>
-                    ),
-                    h1: ({ children }) => <h2>{children}</h2>,
-                    h2: ({ children }) => <h3>{children}</h3>,
-                    h3: ({ children }) => <h4>{children}</h4>,
-                  }}
-                >
-                  {post.bodyRaw}
-                </ReactMarkdown>
-              </BodyB>
-            )
-            : (
-              <BodyA>
-                <ReactMarkdown
-                  components={{
-                    a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer">
-                        {children}
-                      </a>
-                    ),
-                    h1: ({ children }) => <h2>{children}</h2>,
-                    h2: ({ children }) => <h3>{children}</h3>,
-                    h3: ({ children }) => <h4>{children}</h4>,
-                  }}
-                >
-                  {post.bodyRaw}
-                </ReactMarkdown>
-              </BodyA>
-            )
-          : null}
+      {(() => {
+        // One citation registry per render, so [signal:UUID] tokens
+        // anywhere in body_ast / body_raw share numbering.
+        const citationIndex = new CitationIndex();
+        const BodyWrapper = variants.bodyVariant === "B" ? BodyB : BodyA;
+
+        if (post.bodyAst) {
+          try {
+            const ast = JSON.parse(post.bodyAst);
+            return (
+              <BodyWrapper>
+                <AstRenderer value={ast} className="" citationIndex={citationIndex} />
+              </BodyWrapper>
+            );
+          } catch {
+            return null;
+          }
+        }
+
+        if (post.bodyRaw) {
+          return (
+            <BodyWrapper>
+              <CitationMarkdown source={post.bodyRaw} index={citationIndex} />
+            </BodyWrapper>
+          );
+        }
+        return null;
+      })()}
 
       {/* Items list — belongs in the main column, not the sidebar. A
        * reference directory, a needs list, or an offers inventory IS
