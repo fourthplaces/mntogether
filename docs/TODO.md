@@ -130,7 +130,36 @@ The handoff package at [`docs/handoff-root-signal/`](handoff-root-signal/README.
 
 - Confirm `/Posts/create_post` convention documented in CLAUDE.md (capital-P `/{Service}/{handler}`) is still the standard. No blockers here; just noting the cross-reference.
 
-#### 1.10 Assumptions we're not building (intentionally omitted from handoff)
+#### 1.10 Multi-citation sources (per handoff [Addendum 01](handoff-root-signal/ADDENDUM_01_CITATIONS_AND_SOURCE_METADATA.md))
+
+The original handoff accepted a single `source` per post. Addendum 01 adds optional `citations[]` for multi-source posts with richer per-citation metadata. Editorial-side build work:
+
+- **Schema:** add `content_hash TEXT`, `snippet TEXT`, `confidence INT`, `platform_id TEXT`, `platform_post_type_hint TEXT` columns to `post_sources`. The `source_url` column is already there.
+- **Ingest handler:** accept `citations[]`; process each through the existing org/individual dedup ladder (§7.1/§7.2 of the spec); create one `post_sources` row per citation; validate `source.source_url` matches the primary citation's `source_url` (new error code `citation_primary_mismatch`); enforce max-10-citations.
+- **Response shape:** return `citation_ids[]` in the 201 body when `citations[]` was submitted (see addendum §4.2).
+- **Admin Sources panel:** new UI component on the admin post detail page listing every `post_sources` row with URL, retrieved_at, snippet, confidence, platform context. Primary citation visually distinguished with control to reassign.
+- **GraphQL:** expose `post.sources[]` on the Post type with the per-citation fields. Admin-only until public "all sources footnote" is enabled per-post.
+- **Content-hash dedup (from §1.5):** extend to use the primary citation's `content_hash` as a secondary dedup signal when available.
+
+#### 1.11 GraphQL `Post.sourceUrl` resolver fix
+
+- The GraphQL Post type exposes `sourceUrl: String` (`packages/shared/graphql/schema.ts:239`) but the underlying `posts.source_url` column was dropped in migration `000213:22`. Public post detail page (`PostDetailView.tsx:462-476`) renders a "Source" sidebar card when `post.sourceUrl` is non-null — currently always null for ingested posts.
+- Fix: GraphQL resolver reads `sourceUrl` from `post_sources` row where `is_primary` is true (or first row if none marked primary).
+- Alternative considered: restore `posts.source_url` as a denormalised column. Rejected — post_sources is the source of truth and we're adding multi-citation support in §1.10, so one denormalised field loses information.
+
+#### 1.12 Pre-pivot tag-taxonomy residue
+
+Migration `000197_rework_tag_taxonomy.sql` (pre-pivot, when Root Signal and Root Editorial were one repo) introduced `county`, `city`, `language`, `platform`, `verification`, `audience_role`, `reserved`, `structure` tag kinds and marked `service_area` for deletion. Post-pivot, Editorial only uses three tag kinds (`topic`, `service_area`, `safety`); the runtime code ([`layout_engine.rs:1357,1376,1466`](packages/server/src/domains/editions/activities/layout_engine.rs) and [`seed.mjs:145`](data/seed.mjs)) still uses `service_area` correctly.
+
+Cleanup: drop the leftover tag kinds from `tag_kinds` and any orphaned tag rows. Keep `service_area` as-is (that's the current contract). Satisfies the "no legacy baggage" commitment from the 2026-04-22 decisions log.
+
+#### 1.13 Pre-pivot organizations-seed residue
+
+`data/organizations.json` entries carry fields (`populations_served`, `year_founded`, `employees`, `volunteers_needed`, `ice_resistance_focus`, `county`, `sources`) left over from the pre-pivot monolith, when Editorial did its own trust-signal scoring. Post-pivot Editorial doesn't decide trust — Root Signal produces, editors apply `verified` badges, done. These fields have no schema home and are silently dropped by the seed loader.
+
+Cleanup: scrub the dead fields from `data/organizations.json` to match the current `organizations` schema + the `source.organization` envelope shape Root Signal sends. Don't add schema columns for them — we don't want them back.
+
+#### 1.14 Assumptions we're not building (intentionally omitted from handoff)
 
 - **HMAC body signing.** Bearer token over HTTPS is sufficient for the threat model. If we later need replay protection beyond what idempotency keys provide, we add HMAC then.
 - **Feedback webhook to Signal.** Editorial → Signal lifecycle notifications (published / rejected / edited) would be useful as training signal for them, but they don't need it to build the ingest integration. Out of scope for this cycle.

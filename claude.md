@@ -1,5 +1,29 @@
 # Root Editorial — Claude Code Rules
 
+## Reading This Codebase
+
+This repo has two eras. It was once a monolith that contained both Root Signal (scouting + extraction) and Root Editorial (CMS + publication). In early 2026 the two split into separate systems; this repo kept the Editorial half. The split produced a clean design on the runtime side but left archaeological layers in migrations, seed data, GraphQL types, and docs.
+
+**When reading the repo, treat each surface differently:**
+
+| Surface | Status | How to read it |
+|---|---|---|
+| Runtime code (`packages/server/src/`, resolvers, admin + web apps) | **Truth.** | This is the current design. When anything else disagrees with runtime, runtime wins. |
+| [`docs/architecture/DATA_MODEL.md`](docs/architecture/DATA_MODEL.md) | **Canonical design.** | The living narrative description of the current data model. If it contradicts runtime, fix the doc; if it contradicts migrations, ignore the migrations. Update this doc as the design evolves. |
+| Migrations (`packages/server/migrations/`) | **History, not design.** | Append-only log of changes someone made on a Tuesday. Many predate the pivot; many document attempted reworks that never fully shipped (see below). Never infer current design from migrations alone. |
+| [`docs/architecture/DATABASE_SCHEMA.md`](docs/architecture/DATABASE_SCHEMA.md) | Stale. | Self-describes as covering through migration 171; schema is past 236. Regenerate or re-cross-reference against the actual schema before trusting. |
+| Seed data (`data/*.json`) | Often lags. | Fields may exist in seed JSONs that the schema no longer stores — the seed loader silently drops them. Not authoritative. |
+| GraphQL schema (`packages/shared/graphql/schema.ts`) | Mostly truth, some legacy. | Some fields (e.g. `Post.sourceUrl`, `Post.category`, `Post.urgency`) still exist but resolve against dropped columns or return null. Verify against runtime resolvers before treating as current surface area. |
+| Older docs (pre-pivot, dated before 2026-03) | Legacy. | E.g. `ROOT_EDITORIAL_PIVOT.md` captures the pivot rationale and is a useful history reference, but its enumerations of "what Root Editorial does" reflect the intent of Feb 2026, not the shipped system. |
+
+**The pivot boundary is approximately migration `000193`.** Migrations in the 189–193 range (`drop_agents_domain`, `drop_capacity_status`, `drop_memo_cache`, `drop_heat_map_points`, `drop_ai_columns`) are the pivot scrub. Anything before that range is pre-pivot; anything after is the current design layer.
+
+**When a migration shows an "attempted rework" that the code doesn't reflect, the code's choice is the current design.** Example: migration `000197` reworked the tag taxonomy (split `service_area` into `county` + `city`, added `language` + `platform` + `verification` kinds) but the runtime never adopted it — layout engine and seed still use `kind = 'service_area'`. That means: current design = `service_area`. The migration is noise.
+
+**If you find pre-pivot residue during a task** (dead seed fields, dead GraphQL types, dead tag kinds, dead columns no one reads), do not preserve it out of caution. Pre-pivot cruft is to be removed, not migrated around. Surface it in the relevant addendum / TODO entry and either scrub it inline (if trivial) or add it to the scrub backlog.
+
+---
+
 ## Database Safety
 
 Enforced by hooks in `.claude/hooks/` (registered in `.claude/settings.json`):

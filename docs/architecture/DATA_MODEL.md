@@ -1,148 +1,238 @@
-# Root Editorial — Data Model
+# Data Model — Canonical
 
-## Core Architecture
+This document is the single source of truth for Root Editorial's current data model. When runtime code, migrations, and this doc disagree, **this doc wins for design intent and runtime code wins for implementation**. If the two imply different answers, one of them has drifted and needs to be reconciled — raise it, don't pick.
 
-The system uses a **minimal, flexible schema** with three key principles:
-1. **Fields only for queries, relationships, and CTAs**
-2. **Description field for narrative content** (not split into multiple fields)
-3. **Tags for categorical metadata** (ownership, certifications, etc.)
+**Maintenance rule.** Update this doc whenever a design decision changes what a domain object is, what fields it carries, or how it relates to others. A migration that only adds a column doesn't necessarily need a doc update; a migration that changes a kind or a relationship does. Stale entries here are bugs.
 
-## Key Entities
+**Pivot context.** See [`CLAUDE.md` §Reading This Codebase](../../CLAUDE.md) for the pre/post-pivot framing. Everything below describes the post-pivot system.
 
-### Posts
-The central content unit. Posts represent community-relevant content items.
+---
 
-```
-posts
-├── id, title, description, tldr
-├── post_type (service, opportunity, business — expanding to 12+ types)
-├── category, status, urgency
-├── location, latitude, longitude
-├── source_url, content_hash, embedding
-└── created_at, updated_at
-```
+## 1. System shape
 
-### Organizations
-Community organizations that posts are associated with.
+Root Editorial is a curated CMS that consumes fully-formed posts from Root Signal (separate repo, upstream producer) and publishes them as weekly per-county broadsheets. Editorial does not scout, extract, or score trust — those are upstream concerns. Human editors review, sequence, and apply verified-badge decisions.
 
 ```
-organizations
-├── id, name, description
-├── website, phone, email, primary_address
-├── latitude, longitude
-├── organization_type (nonprofit, business, community, other)
-├── verified, verified_at
-├── embedding
-└── created_at, updated_at
+Root Signal  →  POST /Posts/create_post  →  posts table
+                 (ingest envelope)            │
+                                              ├─ 1:1 field groups: post_meta, post_datetime, post_status,
+                                              │                     post_link, post_person
+                                              ├─ 0..N field groups: post_items, post_schedule, post_media,
+                                              │                     post_sources, contacts (polymorphic)
+                                              ├─ taggables → tags (topic | service_area | safety)
+                                              └─ post_sources → sources → organizations / source_individuals
 ```
 
-### Sources
-Content sources linked to organizations (websites, newsletters, etc.).
+---
+
+## 2. Posts
+
+The central content unit. One post per publishable item. The submission contract is specified in [`docs/handoff-root-signal/ROOT_SIGNAL_API_REQUEST.md`](../handoff-root-signal/ROOT_SIGNAL_API_REQUEST.md); this section documents the resulting persisted shape.
+
+### 2.1 Post types (9)
+
+`post_type` is a CHECK-constrained TEXT column on `posts`. Nine values:
+
+| `post_type` | Purpose |
+|---|---|
+| `story` | Feature reporting, narrative. |
+| `update` | "News you should know" — reader needs a next step. |
+| `action` | Deadline-driven civic action; `link.deadline` required. |
+| `event` | Community gathering; `datetime` + `location` required. |
+| `need` | Community ask for help / volunteers / donations. |
+| `aid` | Community offer: food shelf, free clinic, tool library. |
+| `person` | Profile / spotlight. |
+| `business` | Independent local business listing. `is_evergreen` defaults true. |
+| `reference` | Resource directory. The item list IS the post. `is_evergreen` defaults true. |
+
+Per-type required field groups live in [`docs/architecture/POST_TYPE_SYSTEM.md`](POST_TYPE_SYSTEM.md) and are authoritative for validation.
+
+### 2.2 Post fields on the `posts` table
+
+Grouped by concern. This is the post row; field groups are separate tables (§3).
+
+**Identity.** `id UUID`, `title TEXT`, `post_type TEXT`, `weight TEXT` (`heavy|medium|light`), `priority INT` (0–100).
+
+**Body.** `body_raw TEXT` (≥250 chars, always), `body_heavy TEXT?`, `body_medium TEXT?`, `body_light TEXT`, `body_ast JSONB?` (Plate.js). Signal produces all weight-appropriate tiers; layout engine selects template at slot-fill time.
+
+**Timeline.** `published_at TIMESTAMPTZ` (source publication time, not ingest time), `is_evergreen BOOLEAN`, `created_at`, `updated_at`.
+
+**Location.** `location TEXT?` (human-readable), `zip_code TEXT?`, `latitude`/`longitude DOUBLE PRECISION?`.
+
+**Lifecycle / trace.** `status TEXT` (`active | in_review | filled | expired | archived | rejected`), `submission_type TEXT` (`ingested | admin | org_submitted | reader_submitted | revision`), `is_urgent BOOLEAN`, `pencil_mark TEXT?` (`star | heart | smile | circle | null`), `extraction_confidence INT?` (0–100).
+
+**Graph.** `revision_of_post_id UUID?`, `translation_of_id UUID?`, `duplicate_of_id UUID?`, `is_seed BOOLEAN`, `deleted_at TIMESTAMPTZ?`, `deleted_reason TEXT?`.
+
+**Derived / system.** `embedding vector(1024)?` (generated on insert/update), `search_vector TSVECTOR` (trigger-maintained).
+
+**Source language.** `source_language TEXT` (ISO 639-1, default `en`).
+
+### 2.3 Editor-only fields
+
+These are set by editors post-ingest; ingest rejects submissions that set them: `status`, `is_urgent`, `pencil_mark`, `deleted_at`/`deleted_reason`, edition-slot placement.
+
+---
+
+## 3. Field groups
+
+Structured supplements to a post. Each maps to its own table; cardinality is per-table.
+
+| Group | Table | Cardinality | Purpose |
+|---|---|---|---|
+| Meta | `post_meta` | 1:1 | `kicker`, `byline`, `deck`, `pull_quote`, `timestamp`, `updated` — editorial presentation. |
+| Datetime | `post_datetime` | 1:1 | `start_at`, `end_at`, `cost`, `recurring` — required for `event`. |
+| Schedule | `post_schedule` | 0..N | `day`, `opens`, `closes`, `sort_order` — operating hours, volunteer windows. |
+| Items | `post_items` | 0..N | `name`, `detail`, `sort_order` — directory entries, need/aid lists. |
+| Person | `post_person` | 1:1 | `name`, `role`, `bio`, `quote`, `photo_url`, `photo_media_id` — required for `person`. |
+| Link | `post_link` | 1:1 | `label`, `url`, `deadline` — CTA; required for `action`. |
+| Media | `post_media` | 0..N | `image_url`, `media_id`, `caption`, `credit`, `alt_text`, `sort_order`. Field groups unified with library uploads via polymorphic `media_references`. |
+| Status | `post_status` | 1:1 | `state` (`open | closed`), `verified` — required for `need`, `aid`. |
+| Contacts | `contacts` (polymorphic) | 0..N | `contactable_type = 'post'`, `contact_type` ∈ {phone, email, website, address, booking_url, social}. |
+| Source attribution | `post_source_attribution` | 1:1 | `source_name`, `attribution` — the human-readable credit line shown on the post. |
+
+---
+
+## 4. Sources and citations
+
+Posts link to sources through a polymorphic graph, not a direct FK.
 
 ```
-sources
-├── id, organization_id
-├── source_type (website, newsletter, etc.)
-├── status, last_crawled_at
-└── created_at
+post  →  post_sources  →  sources  →  organizations
+                                   ↘  source_individuals
 ```
 
-### Post→Organization Relationship
+### 4.1 `post_sources`
 
-Posts do NOT have a direct FK to organizations. The relationship is:
+0..N rows per post (a post can cite multiple sources). Each row: `source_type` (website | instagram | facebook | x | ...), `source_id` (polymorphic target), `source_url`, `first_seen_at`, `last_seen_at`, `disappeared_at`.
+
+After [Addendum 01](../handoff-root-signal/ADDENDUM_01_CITATIONS_AND_SOURCE_METADATA.md) lands, this table additionally carries `content_hash`, `snippet`, `confidence`, `platform_id`, `platform_post_type_hint` per citation.
+
+### 4.2 `sources`
+
+Parent table for websites and social profiles attached to organisations. One row per distinct source (many-to-many with orgs via FK on the source row).
+
+### 4.3 `organizations`
+
+Organisation identity. Fields Editorial stores: `name`, `website`, `phone`, `email` (via contacts), `primary_address`, `latitude`, `longitude`, social handles, `verified` badge (applied by editors), `logo_media_id` / `logo_url`, `status` (`pending | approved | active | inactive`).
+
+**Editorial does not do trust scoring.** Organisations are not ranked by age, size, or signal strength — those decisions happen upstream in Root Signal or at editor review. The `verified` column is a single badge editors apply after reviewing an org; nothing auto-scores.
+
+### 4.4 `source_individuals`
+
+Individuals cited as sources (not subjects — that's `post_person`). Fields: `display_name`, `handle`, `platform` (enum), `platform_url`, `verified_identity`, `consent_to_publish`, `consent_source`, `consent_captured_at`. Dedup ladder: `(platform, handle)` → `platform_url` → insert.
+
+### 4.5 `post_source_attribution` vs `post_sources`
+
+Two tables with intentional distinct roles:
+
+- `post_sources` — raw provenance (every URL, with metadata). 0..N per post. Admin-visible.
+- `post_source_attribution` — the single rendered credit line shown to public readers. 1:1 per post. Derived from the primary `post_sources` row.
+
+---
+
+## 5. Tags
+
+Three tag kinds. Polymorphic `taggables` join attaches any tag to any entity.
+
+| `kind` | Vocabulary | Attached to | Purpose |
+|---|---|---|---|
+| `topic` | Open. Current seed list in `data/tags.json`. Expected to grow — propose new slugs freely; unknown slugs auto-create and flag `in_review`. | post, organization | Topic-grouping, search, discovery. ≥1 required per post. |
+| `service_area` | Closed. 87 MN counties + `statewide`. | post, organization | Geographic eligibility for county editions. ≥1 required per post. Unknown slugs hard-fail. |
+| `safety` | Reserved. Access-policy modifiers (e.g. `no-id-required`, `ice-safe`, `sliding-scale`, `confidential`, `harm-reduction`). Full list in [handoff `TAG_VOCABULARY.md` §3](../handoff-root-signal/TAG_VOCABULARY.md). | post, organization | Flags that remove hesitation to seek a service. Optional. Unknown slugs hard-fail. |
+
+### 5.1 Dead tag kinds
+
+Pre-pivot migrations introduced and then abandoned: `reserved`, `structure`, `audience_role`, `population`, `post_type` (as a tag kind), `community_served`, `service_offered`, `org_leadership`, `business_model`, `certification`, `ownership`, `worker_structure`, `listing_type`, `provider_category`, `provider_specialty`, `with_agent`, `county`, `city`, `language`, `platform`, `verification`.
+
+**None of these are current design.** They exist as residual rows in `tag_kinds` and/or `tags` but are not used by runtime code. Scrub work is tracked in [`docs/TODO.md` §1.12](../TODO.md).
+
+### 5.2 Tag reservation: `neighborhood`
+
+Reserved for future use. Present-day geographic sub-county granularity (e.g., "North Minneapolis", "Phillips", "Lake Street") lives in `location` text fields, not tags. If we formalise neighborhoods as tags, the kind will be `neighborhood`.
+
+---
+
+## 6. Geography
+
+### 6.1 Counties
+
+87 Minnesota counties (real) + 1 pseudo-county (`Statewide`). `counties` table: `fips_code` (PRIMARY identifier), `name`, `state`, `latitude`, `longitude`, `is_pseudo BOOLEAN`, `target_content_weight INT`.
+
+**Statewide** is a real row in `counties` with `fips_code = 'statewide'` and `is_pseudo = true`. The layout engine branches on `is_pseudo`: real counties pull county-tagged + statewide-tagged posts; Statewide pulls only explicitly `service_area = 'statewide'` posts.
+
+### 6.2 `zip_counties`
+
+Many-to-many: one ZIP can span multiple counties. Used to infer county from a post's `zip_code` when no `service_area` tag is set.
+
+---
+
+## 7. Editions and layout
+
+Editions are weekly per-county broadsheet compositions.
 
 ```
-posts → post_sources → sources → organizations
-                       (has organization_id FK)
+editions (id, county_id, period_start, status, …)
+  ├── edition_slots (edition_id, row_index, slot_index, post_id | widget_id, template, …)
+  └── row_templates (variant configurations for layout)
 ```
 
-### Tags (Polymorphic)
+`edition_slots` is polymorphic — a slot holds either a `post_id` or a `widget_id`. Layout engine fills slots by matching posts to row templates by weight + post_type compatibility.
 
-Tags provide flexible categorization for any entity.
+Edition lifecycle: `draft → in_review → approved → published → archived`. Lifecycle gates prevent 0-slot editions from advancing past `draft`.
 
-```
-tags: (id, kind, value, display_name)
-taggables: (tag_id, taggable_type, taggable_id)
-tag_kinds: (slug, is_public) — controls visibility
-```
+---
 
-Key tag kinds:
-- `public` — User-visible badges (Donate, Volunteer, Food, Help)
-- `post_type` — Filter tabs (offering, seeking, announcement)
-- `service_offered` — Category dropdown (food-assistance, housing, legal-aid)
+## 8. Widgets
 
-### Members & Auth
+Standalone broadsheet items that aren't posts — editorial items placed by the layout editor. Types: `number`, `pull_quote`, `resource_bar`, `weather`, `section_sep`, `photo`. Widgets have their own geo/temporal targeting (county + period) and can appear alongside posts in edition slots.
 
-```
-members
-├── id, searchable_text
-├── latitude, longitude, location_name
-├── active, notification_count_this_week, paused_until
-└── created_at
+---
 
-identifiers
-├── id, member_id
-├── phone_hash (SHA256 of phone or email — never plaintext)
-├── is_admin
-└── created_at
-```
+## 9. Members and auth
 
-**Privacy**: No PII stored in members. Phone/email identifiers are hashed.
-
-### Contacts & Schedules
+Minimalist privacy-conscious member model.
 
 ```
-listing_contacts: (id, listing_id, contact_type, contact_value, display_order)
-schedules: (schedulable_type='post', schedulable_id, day_of_week, opens_at, closes_at, timezone)
+members (id, searchable_text, latitude, longitude, location_name, active, …)
+identifiers (id, member_id, phone_hash, is_admin)  -- SHA-256 hashes only; no plaintext
 ```
 
-### Notes (Editorial)
+Auth flow: phone / email → Twilio Verify OTP → JWT tied to `identifiers.id`. `ADMIN_IDENTIFIERS` env var lists admin phone/email hashes; the `AdminUser` extractor gates admin routes.
+
+A new `ServiceClient` extractor (tracked in [TODO §1.1](../TODO.md)) authenticates Root Signal's machine-token Bearer for the ingest endpoint.
+
+---
+
+## 10. Notes (editorial)
 
 ```
-notes
-├── id, body, note_type
-├── notable_type, notable_id (polymorphic — attached to posts, orgs, etc.)
-├── created_by
-└── created_at
+notes (id, noteable_type, noteable_id, body, severity, is_public, source_url, cta_text, expired_at, created_by, created_at)
 ```
 
-## Design Patterns
+Polymorphic — attaches to posts, organisations, or any other entity. `urgent_notes` on a post are a GraphQL projection of `notes where severity='urgent' and noteable_type='post'`.
 
-### 1. Polymorphic Tagging System
+---
 
-```sql
--- Tag kinds
-kind='ownership', value='women_owned'
-kind='certification', value='b_corp'
-kind='community_served', value='somali'
-kind='service_area', value='minneapolis'
+## 11. What Editorial does NOT store
 
--- Applied to any entity
-taggable_type='post', taggable_id='...'
-taggable_type='organization', taggable_id='...'
-```
+Explicit non-scope, to prevent pre-pivot confusion returning:
 
-### 2. Extension Tables
+- **Trust scoring** on organisations or sources. No `year_founded`, `employee_count`, reputation score, or credibility rank. Editors apply a single `verified` badge per org; that's it.
+- **Raw crawl state.** No `last_crawled_at`, scrape metadata, or extraction pipeline state. Root Signal owns all of that.
+- **AI-generated summary fields** on posts. No `custom_tldr`, `custom_description`, `custom_title`. Root Signal's extraction produces body tiers directly; no downstream AI rewriting.
+- **Capacity, heat-map, or signal-strength metrics.** Deleted in migrations 190–192.
+- **Audience-role / population-served taxonomy.** People aren't single-bucket identities; no fixed vocabulary captures them.
 
-Type-specific properties are stored in extension tables that join 1:1 with the base entity. Example: `business_organizations` extends `organizations` with proceeds_percentage, donation_link, etc.
+Anything from the pre-pivot era that describes Editorial as scoring, ranking, crawling, or auto-summarising content is stale. See [`CLAUDE.md` §Reading This Codebase](../../CLAUDE.md).
 
-### 3. Source-of-Truth for Schema
+---
 
-The canonical schema is defined by the migration files in `packages/server/migrations/`. See also [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) for a more complete reference.
+## 12. Where to look for details
 
-## Data Flow
-
-### Content Ingestion (future: Root Signal integration)
-```
-Root Signal API → posts (via sync/import) → editorial review → publish
-```
-
-### Editorial Flow
-```
-posts (pending) → admin review → posts (active) → public display
-```
-
-### Auth Flow
-```
-phone/email → Twilio OTP → identifiers (hashed) → JWT → admin access
-```
+- SQL-level schema: generated from migrations in `packages/server/migrations/`. See the `Post` Rust model at `packages/server/src/domains/posts/models/post.rs` for a compact view of the final posts-table shape.
+- Post-type field-group requirements: [`POST_TYPE_SYSTEM.md`](POST_TYPE_SYSTEM.md).
+- Tag vocabulary: [handoff `TAG_VOCABULARY.md`](../handoff-root-signal/TAG_VOCABULARY.md).
+- Ingest contract: [handoff `ROOT_SIGNAL_API_REQUEST.md`](../handoff-root-signal/ROOT_SIGNAL_API_REQUEST.md) + [`ROOT_SIGNAL_DATA_CONTRACT.md`](ROOT_SIGNAL_DATA_CONTRACT.md).
+- Addenda: [Addendum 01 — Citations and source metadata](../handoff-root-signal/ADDENDUM_01_CITATIONS_AND_SOURCE_METADATA.md).
+- Edition lifecycle: [`EDITION_STATUS_MODEL.md`](EDITION_STATUS_MODEL.md) + [`POST_EDITION_LIFECYCLE.md`](../guides/POST_EDITION_LIFECYCLE.md).
+- Outstanding scrub work: [`POST_PIVOT_SCRUB.md`](../status/POST_PIVOT_SCRUB.md) (forthcoming).
