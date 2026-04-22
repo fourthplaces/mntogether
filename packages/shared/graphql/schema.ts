@@ -39,6 +39,12 @@ type Query {
   ): PostConnection!
   postStats(status: String): PostStats!
 
+  """
+  Signal Inbox — posts with status = in_review, each with derived review_flags.
+  See handoff spec section 11.2 for the flag taxonomy. Admin-only.
+  """
+  signalInbox(limit: Int, offset: Int): SignalInboxConnection!
+
   # Organizations (admin)
   organizations: [Organization!]!
   organization(id: ID!): Organization
@@ -299,6 +305,22 @@ type PostConnection {
   totalCount: Int!
   hasNextPage: Boolean!
   hasPreviousPage: Boolean!
+}
+
+"""
+A single row in the Signal Inbox: a Post plus the soft-fail flags that
+landed it in review. Flag values come from the taxonomy in the Root
+Signal handoff spec section 11.2 — low_confidence, possible_duplicate,
+deck_missing_on_heavy, individual_no_consent, source_stale.
+"""
+type SignalInboxRow {
+  post: Post!
+  reviewFlags: [String!]!
+}
+
+type SignalInboxConnection {
+  rows: [SignalInboxRow!]!
+  totalCount: Int!
 }
 
 type PublicPostConnection {

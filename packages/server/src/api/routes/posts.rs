@@ -952,6 +952,84 @@ async fn list(
     }
 }
 
+// =============================================================================
+// Signal Inbox list — status=in_review with derived review_flags
+// =============================================================================
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListInReviewRequest {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct InReviewPostResult {
+    #[serde(flatten)]
+    pub post: PostResult,
+    pub review_flags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct InReviewListResult {
+    pub posts: Vec<InReviewPostResult>,
+    pub total_count: i64,
+}
+
+/// Signal Inbox backend — returns posts with `status = 'in_review'` and a
+/// per-post `review_flags` array derived at query time from current columns
+/// (see `Post::find_in_review_with_flags`). Tags, org info, and field groups
+/// the admin UI renders are hydrated alongside.
+async fn list_in_review(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<ListInReviewRequest>,
+) -> ApiResult<Json<InReviewListResult>> {
+    let deps = &state.deps;
+    let limit = req.limit.unwrap_or(100).clamp(1, 500);
+    let offset = req.offset.unwrap_or(0).max(0);
+
+    let (rows, total_count) =
+        Post::find_in_review_with_flags(limit, offset, &deps.db_pool).await?;
+
+    let post_ids: Vec<Uuid> = rows.iter().map(|(p, _)| p.id.into_uuid()).collect();
+
+    let tag_rows = Tag::find_for_post_ids(&post_ids, &deps.db_pool).await?;
+    let mut tags_by_post: HashMap<Uuid, Vec<PostTagResult>> = HashMap::new();
+    for row in tag_rows {
+        tags_by_post
+            .entry(row.taggable_id)
+            .or_default()
+            .push(PostTagResult {
+                id: row.tag.id.into_uuid(),
+                kind: row.tag.kind,
+                value: row.tag.value,
+                display_name: row.tag.display_name,
+                color: row.tag.color,
+            });
+    }
+
+    let org_info = Post::find_org_info_for_posts(&post_ids, &deps.db_pool).await?;
+
+    let posts = rows
+        .into_iter()
+        .map(|(p, flags)| {
+            let id = p.id.into_uuid();
+            let mut pr = PostResult::from(p);
+            pr.tags = Some(tags_by_post.remove(&id).unwrap_or_default());
+            if let Some((org_id, org_name)) = org_info.get(&id) {
+                pr.organization_id = Some(*org_id);
+                pr.organization_name = Some(org_name.clone());
+            }
+            InReviewPostResult {
+                post: pr,
+                review_flags: flags,
+            }
+        })
+        .collect();
+
+    Ok(Json(InReviewListResult { posts, total_count }))
+}
+
 /// List posts eligible for a given edition, mirroring the layout engine's
 /// county-matching logic (locationables, statewide tag, or no-location fallback)
 /// with optional slotted/not_slotted filtering relative to the edition.
@@ -2436,6 +2514,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         // --- Posts service (stateless, plural) ---
         .route("/Posts/list", post(list))
+        .route("/Posts/list_in_review", post(list_in_review))
         .route("/Posts/list_for_edition", post(list_for_edition))
         .route("/Posts/search_nearby", post(search_nearby))
         .route("/Posts/submit", post(submit))

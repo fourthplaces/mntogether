@@ -1,0 +1,97 @@
+[
+  {
+    "_comment": "Mock data for the Signal Inbox admin UI (/admin/signal-inbox). Each entry lands as status='in_review' + submission_type='ingested', and carries column values chosen to trigger specific review-flag derivations in Post::find_in_review_with_flags. Clear the queue with `make clear-signal-inbox`; reseed with `make seed-signal-inbox`. Replaced by real Root Signal ingest once Worktree 3 ships."
+  },
+  {
+    "title": "Volunteers needed Saturday — Mounds View food shelf",
+    "bodyRaw": "Mounds View Food Shelf is short on weekend volunteers this Saturday. Shifts run 8–11am and 11am–2pm, based out of the Silverwood Park community room. Contact the coordinator directly if you can help; no prior training required but an orientation happens on-site.",
+    "bodyLight": "Mounds View Food Shelf short on Saturday volunteers; two shifts 8–11am and 11am–2pm at Silverwood Park.",
+    "postType": "need",
+    "weight": "medium",
+    "location": "Mounds View, MN",
+    "extractionConfidence": 42,
+    "tags": [
+      { "kind": "topic", "value": "food-access" },
+      { "kind": "service_area", "value": "ramsey" }
+    ],
+    "meta": { "byline": "root-signal/extraction", "deck": "Short-notice volunteer ask from a small shelf near Silverwood Park." },
+    "sourceUrl": "https://instagram.com/p/mock-low-confidence-1",
+    "_flagIntent": ["low_confidence"]
+  },
+  {
+    "title": "Council vote on transit expansion — Thursday 7pm",
+    "bodyRaw": "The Ramsey County board is scheduled to vote Thursday at 7pm on a proposal to extend the Route 62 line east from the Sun Ray transit center. Public comment opens at 6:30; written comment closes at 4pm day-of. The full meeting packet is posted on the county site.",
+    "bodyLight": "Ramsey County transit expansion vote Thursday 7pm; public comment opens 6:30.",
+    "postType": "update",
+    "weight": "heavy",
+    "location": "Saint Paul, MN",
+    "extractionConfidence": 55,
+    "tags": [
+      { "kind": "topic", "value": "transit" },
+      { "kind": "service_area", "value": "ramsey" }
+    ],
+    "sourceUrl": "https://ramseycounty.us/news/mock-transit-vote",
+    "_flagIntent": ["low_confidence", "deck_missing_on_heavy"]
+  },
+  {
+    "title": "Warming-center hours extended through Friday",
+    "bodyRaw": "The Division of Indian Work warming center will extend its hours through Friday morning given the forecast. Overnight capacity remains at 40; showers and a light breakfast are available. Masks provided on request.",
+    "bodyLight": "Division of Indian Work warming center extends hours through Friday; 40 overnight spots.",
+    "postType": "aid",
+    "weight": "heavy",
+    "location": "Minneapolis, MN",
+    "extractionConfidence": 82,
+    "tags": [
+      { "kind": "topic", "value": "winter-safety" },
+      { "kind": "service_area", "value": "hennepin" }
+    ],
+    "sourceUrl": "https://facebook.com/mock-warming-center",
+    "_flagIntent": ["deck_missing_on_heavy"]
+  },
+  {
+    "title": "Same food shelf ask (from a second scrape)",
+    "bodyRaw": "Mounds View food shelf still looking for Saturday volunteers for the weekend shifts at Silverwood Park. Same details as the earlier post — two shifts available, no prior training required. This one came in from a different platform so Root Signal flagged it as a possible duplicate.",
+    "bodyLight": "Duplicate ask: Mounds View food shelf Saturday volunteer shifts, from a second source.",
+    "postType": "need",
+    "weight": "light",
+    "location": "Mounds View, MN",
+    "extractionConfidence": 78,
+    "tags": [
+      { "kind": "topic", "value": "food-access" },
+      { "kind": "service_area", "value": "ramsey" }
+    ],
+    "sourceUrl": "https://facebook.com/mock-duplicate-source",
+    "_flagIntent": ["possible_duplicate"],
+    "_duplicateOfSlug": "mock-duplicate-target"
+  },
+  {
+    "title": "(Canonical) Volunteers needed Saturday — Mounds View food shelf",
+    "bodyRaw": "This is the canonical (active) post the duplicate above points at. Mounds View Food Shelf needs 12 volunteers for Saturday. The earlier-published version, marked 'active' and slottable; Root Signal found a second source publishing the same ask and submitted it as a duplicate for editor review.",
+    "bodyLight": "Canonical Mounds View food shelf volunteer ask — the duplicate target.",
+    "postType": "need",
+    "weight": "medium",
+    "location": "Mounds View, MN",
+    "status": "active",
+    "tags": [
+      { "kind": "topic", "value": "food-access" },
+      { "kind": "service_area", "value": "ramsey" }
+    ],
+    "sourceUrl": "https://facebook.com/mock-canonical-target",
+    "_canonicalSlug": "mock-duplicate-target"
+  },
+  {
+    "title": "Low-signal extract: partial recycling event listing",
+    "bodyRaw": "Saturday recycling event at the high school. Drop off electronics, paint, old medications. Probably 9–noon, check with the organizers.",
+    "bodyLight": "Saturday recycling event at the high school — hours tentative.",
+    "postType": "event",
+    "weight": "light",
+    "location": "Bloomington, MN",
+    "extractionConfidence": 38,
+    "tags": [
+      { "kind": "topic", "value": "public-works" },
+      { "kind": "service_area", "value": "hennepin" }
+    ],
+    "sourceUrl": "https://nextdoor.com/mock-recycling",
+    "_flagIntent": ["low_confidence"]
+  }
+]

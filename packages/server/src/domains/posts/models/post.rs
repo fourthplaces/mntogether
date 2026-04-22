@@ -1519,5 +1519,94 @@ impl Post {
         .await
         .map_err(Into::into)
     }
+
+    /// Signal Inbox query — fetch posts with `status = 'in_review'` and
+    /// derive per-post `review_flags` at query time.
+    ///
+    /// Flags that can be derived from current schema:
+    ///   - `low_confidence`: `extraction_confidence < 60`
+    ///   - `possible_duplicate`: `duplicate_of_id IS NOT NULL`
+    ///   - `deck_missing_on_heavy`: `weight = 'heavy'` AND no `post_meta.deck`
+    ///
+    /// Other soft-fail conditions from the handoff spec (§11.2) —
+    /// `source_stale`, `individual_no_consent` — depend on schema additions
+    /// that ingest (Worktree 3) owns (source_individuals table,
+    /// source-metadata-snapshot comparison). Posts carrying those flags
+    /// will appear here once ingest writes them.
+    ///
+    /// Returns a flat list of `(Post, Vec<String>)` ordered by `created_at DESC`
+    /// and the total in_review count (for the list header).
+    pub async fn find_in_review_with_flags(
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<(Vec<(Self, Vec<String>)>, i64)> {
+        let total: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) FROM posts
+            WHERE status = 'in_review'
+              AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
+            "#,
+        )
+        .fetch_one(pool)
+        .await?;
+
+        let posts = sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM posts
+            WHERE status = 'in_review'
+              AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+            "#,
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
+
+        if posts.is_empty() {
+            return Ok((vec![], total));
+        }
+
+        let ids: Vec<Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+        let deck_rows: Vec<(Uuid, Option<String>)> = sqlx::query_as(
+            r#"SELECT post_id, deck FROM post_meta WHERE post_id = ANY($1)"#,
+        )
+        .bind(&ids)
+        .fetch_all(pool)
+        .await?;
+        let decks: std::collections::HashMap<Uuid, Option<String>> =
+            deck_rows.into_iter().collect();
+
+        let with_flags = posts
+            .into_iter()
+            .map(|p| {
+                let mut flags: Vec<String> = Vec::new();
+                if p.extraction_confidence.map_or(false, |c| c < 60) {
+                    flags.push("low_confidence".to_string());
+                }
+                if p.duplicate_of_id.is_some() {
+                    flags.push("possible_duplicate".to_string());
+                }
+                if p.weight == "heavy" {
+                    let has_deck = decks
+                        .get(&p.id.into_uuid())
+                        .and_then(|d| d.as_deref())
+                        .map_or(false, |d| !d.trim().is_empty());
+                    if !has_deck {
+                        flags.push("deck_missing_on_heavy".to_string());
+                    }
+                }
+                (p, flags)
+            })
+            .collect();
+
+        Ok((with_flags, total))
+    }
 }
 
