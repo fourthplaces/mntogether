@@ -4,7 +4,6 @@ import "./fragments";
 export const PublicPostsQuery = graphql(`
   query PublicPosts(
     $postType: String
-    $category: String
     $limit: Int
     $offset: Int
     $zipCode: String
@@ -12,7 +11,6 @@ export const PublicPostsQuery = graphql(`
   ) {
     publicPosts(
       postType: $postType
-      category: $category
       limit: $limit
       offset: $offset
       zipCode: $zipCode
@@ -29,11 +27,6 @@ export const PublicPostsQuery = graphql(`
 export const PublicFiltersQuery = graphql(`
   query PublicFilters {
     publicFilters {
-      categories {
-        value
-        displayName
-        count
-      }
       postTypes {
         value
         displayName

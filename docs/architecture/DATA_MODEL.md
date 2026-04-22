@@ -63,7 +63,7 @@ Grouped by concern. This is the post row; field groups are separate tables (§3)
 
 **Graph.** `revision_of_post_id UUID?`, `translation_of_id UUID?`, `duplicate_of_id UUID?`, `is_seed BOOLEAN`, `deleted_at TIMESTAMPTZ?`, `deleted_reason TEXT?`.
 
-**Derived / system.** `embedding vector(1024)?` (generated on insert/update), `search_vector TSVECTOR` (trigger-maintained).
+**Derived / system.** `search_vector TSVECTOR` (trigger-maintained). No `embedding` column — the pgvector work was dropped in migration 000193 when the AI pipeline moved upstream to Root Signal. See [`EMBEDDING_FEATURES_REFERENCE.md`](EMBEDDING_FEATURES_REFERENCE.md) for the historical catalogue if semantic search gets reintroduced.
 
 **Source language.** `source_language TEXT` (ISO 639-1, default `en`).
 
@@ -142,13 +142,19 @@ Three tag kinds. Polymorphic `taggables` join attaches any tag to any entity.
 
 ### 5.1 Dead tag kinds
 
-Pre-pivot migrations introduced and then abandoned: `reserved`, `structure`, `audience_role`, `population`, `post_type` (as a tag kind), `community_served`, `service_offered`, `org_leadership`, `business_model`, `certification`, `ownership`, `worker_structure`, `listing_type`, `provider_category`, `provider_specialty`, `with_agent`, `county`, `city`, `language`, `platform`, `verification`.
+Pre-pivot migrations introduced and then abandoned: `reserved`, `structure`, `audience_role`, `population`, `post_type` (as a tag kind), `community_served`, `service_offered`, `org_leadership`, `business_model`, `certification`, `ownership`, `worker_structure`, `listing_type`, `provider_category`, `provider_specialty`, `with_agent`, `county`, `city`, `language`, `verification`.
 
-**None of these are current design.** They exist as residual rows in `tag_kinds` and/or `tags` but are not used by runtime code. Scrub work is tracked in [`docs/TODO.md` §1.12](../TODO.md).
+Migration `000237` removed their rows from `tag_kinds` and any remaining rows from `tags`, then added a CHECK on `tags.kind` so new writes can only use the canonical kinds below.
 
 ### 5.2 Tag reservation: `neighborhood`
 
-Reserved for future use. Present-day geographic sub-county granularity (e.g., "North Minneapolis", "Phillips", "Lake Street") lives in `location` text fields, not tags. If we formalise neighborhoods as tags, the kind will be `neighborhood`.
+Reserved for future use. Present-day geographic sub-county granularity (e.g., "North Minneapolis", "Phillips", "Lake Street") lives in `location` text fields, not tags. If we formalise neighborhoods as tags, the kind will be `neighborhood`. The `tag_kinds` row exists (seeded by migration `000237`) so the CHECK constraint accepts it when we turn it on; no `tags` rows yet.
+
+### 5.3 `platform` — lookup kind, not a tag kind
+
+The `platform` kind is preserved as a read-only lookup table used by the `organization_links` picker (display name, color, emoji per platform — instagram, facebook, substack, etc.). **It is not a tag kind in the design sense:** nothing attaches `platform` tags to posts or orgs. Migration 232 moved platform presence to the first-class `organization_links` table; the 46 `tags` rows where `kind = 'platform'` stayed as a UI lookup and the `tag_kinds.allowed_resource_types` was cleared to reflect that. The CHECK constraint on `tags.kind` includes `'platform'` for that reason.
+
+If the picker is ever rewritten to read from a dedicated `platforms` table or a static config, the `platform` kind can go away and the CHECK constraint should be tightened.
 
 ---
 
@@ -235,4 +241,4 @@ Anything from the pre-pivot era that describes Editorial as scoring, ranking, cr
 - Ingest contract: [handoff `ROOT_SIGNAL_API_REQUEST.md`](../handoff-root-signal/ROOT_SIGNAL_API_REQUEST.md) + [`ROOT_SIGNAL_DATA_CONTRACT.md`](ROOT_SIGNAL_DATA_CONTRACT.md).
 - Addenda: [Addendum 01 — Citations and source metadata](../handoff-root-signal/ADDENDUM_01_CITATIONS_AND_SOURCE_METADATA.md).
 - Edition lifecycle: [`EDITION_STATUS_MODEL.md`](EDITION_STATUS_MODEL.md) + [`POST_EDITION_LIFECYCLE.md`](../guides/POST_EDITION_LIFECYCLE.md).
-- Outstanding scrub work: [`POST_PIVOT_SCRUB.md`](../status/POST_PIVOT_SCRUB.md) (forthcoming).
+- Outstanding scrub work: [`POST_PIVOT_SCRUB.md`](../status/POST_PIVOT_SCRUB.md).

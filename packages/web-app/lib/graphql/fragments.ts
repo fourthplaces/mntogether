@@ -9,7 +9,6 @@ export const PublicPostFields = graphql(`
     location
     sourceUrl
     postType
-    category
     createdAt
     publishedAt
     distanceMiles
@@ -36,8 +35,6 @@ export const PostDetailPublicFields = graphql(`
     bodyAst
     status
     postType
-    category
-    urgency
     location
     sourceUrl
     createdAt

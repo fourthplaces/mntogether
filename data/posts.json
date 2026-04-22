@@ -15,8 +15,7 @@
     "tags": {
       "topic": [
         "housing",
-        "community",
-        "brooklyn-center"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -123,8 +122,7 @@
     "tags": {
       "topic": [
         "community",
-        "housing",
-        "phillips"
+        "housing"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -382,8 +380,7 @@
     "location": "Burnsville, MN",
     "tags": {
       "topic": [
-        "food",
-        "south-metro"
+        "food"
       ],
       "serviceArea": [
         "dakota-county"
@@ -847,8 +844,7 @@
     "tags": {
       "topic": [
         "environment",
-        "housing",
-        "brooklyn-center"
+        "housing"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -898,8 +894,7 @@
     "tags": {
       "topic": [
         "food",
-        "community",
-        "lake-street"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -1018,8 +1013,7 @@
     "tags": {
       "topic": [
         "safety",
-        "health",
-        "north-minneapolis"
+        "health"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -1073,8 +1067,7 @@
     "tags": {
       "topic": [
         "immigration",
-        "legal",
-        "lake-street"
+        "legal"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -1709,8 +1702,7 @@
     "location": "North Minneapolis, MN",
     "tags": {
       "topic": [
-        "education",
-        "north-minneapolis"
+        "education"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -1960,8 +1952,7 @@
     "location": "Brooklyn Center, MN",
     "tags": {
       "topic": [
-        "transit",
-        "brooklyn-center"
+        "transit"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -2012,8 +2003,7 @@
     "location": "Minneapolis, MN",
     "tags": {
       "topic": [
-        "housing",
-        "south-metro"
+        "housing"
       ],
       "serviceArea": [
         "hennepin-county",
@@ -2081,8 +2071,7 @@
     "tags": {
       "topic": [
         "food",
-        "community",
-        "brooklyn-center"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -2268,8 +2257,7 @@
     "location": "Brooklyn Center, MN",
     "tags": {
       "topic": [
-        "education",
-        "brooklyn-center"
+        "education"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -2471,8 +2459,7 @@
     "location": "Near West Broadway, Minneapolis",
     "tags": {
       "topic": [
-        "housing",
-        "north-minneapolis"
+        "housing"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -2666,8 +2653,7 @@
     "tags": {
       "topic": [
         "childcare",
-        "education",
-        "north-minneapolis"
+        "education"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -3075,8 +3061,7 @@
     "tags": {
       "topic": [
         "food",
-        "community",
-        "lake-street"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -3570,8 +3555,7 @@
     "location": "North Minneapolis, MN",
     "tags": {
       "topic": [
-        "health",
-        "north-minneapolis"
+        "health"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -4069,8 +4053,7 @@
     "location": "North Minneapolis, MN",
     "tags": {
       "topic": [
-        "community",
-        "north-minneapolis"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -4347,8 +4330,7 @@
     "tags": {
       "topic": [
         "immigration",
-        "health",
-        "lake-street"
+        "health"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -4406,8 +4388,7 @@
     "location": "Brooklyn Center, MN",
     "tags": {
       "topic": [
-        "community",
-        "brooklyn-center"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -4500,9 +4481,7 @@
     "location": "Nicollet Ave, Minneapolis",
     "tags": {
       "topic": [
-        "restaurant",
-        "culture",
-        "lake-street"
+        "culture"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -4674,8 +4653,7 @@
     "tags": {
       "topic": [
         "food",
-        "culture",
-        "lake-street"
+        "culture"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -5054,9 +5032,7 @@
     "isEvergreen": true,
     "tags": {
       "topic": [
-        "restaurant",
-        "culture",
-        "lake-street"
+        "culture"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -5131,8 +5107,7 @@
     "tags": {
       "topic": [
         "health",
-        "community",
-        "north-minneapolis"
+        "community"
       ],
       "serviceArea": [
         "hennepin-county"
@@ -5188,7 +5163,7 @@
     "isEvergreen": true,
     "tags": {
       "topic": [
-        "restaurant"
+        "food"
       ],
       "serviceArea": [
         "washington-county"
@@ -6246,7 +6221,6 @@
     "location": "Palisade, MN",
     "tags": {
       "topic": [
-        "restaurant",
         "community"
       ],
       "serviceArea": [
