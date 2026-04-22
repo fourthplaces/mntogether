@@ -37,6 +37,16 @@ pub trait BaseStorageService: Send + Sync {
         expires_secs: u64,
     ) -> Result<String>;
 
+    /// Server-side upload. Used by the Root Signal media ingest pipeline:
+    /// the server fetches + normalises an external image, then writes the
+    /// WebP bytes here. Editor uploads still use the presigned path.
+    async fn put_object(
+        &self,
+        key: &str,
+        body: Vec<u8>,
+        content_type: &str,
+    ) -> Result<()>;
+
     /// Delete an object by key.
     async fn delete(&self, key: &str) -> Result<()>;
 
