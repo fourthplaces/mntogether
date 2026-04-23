@@ -159,7 +159,15 @@ Cleanup: drop the leftover tag kinds from `tag_kinds` and any orphaned tag rows.
 
 Cleanup: scrub the dead fields from `data/organizations.json` to match the current `organizations` schema + the `source.organization` envelope shape Root Signal sends. Don't add schema columns for them — we don't want them back.
 
-#### 1.14 Assumptions we're not building (intentionally omitted from handoff)
+#### 1.14 Citation source language (small addendum)
+
+Surfaced during 2026-04-23 post-merge review of the tag-kind scrub. The `language` tag kind was dropped correctly — `posts.source_language` already tracks the post's own language, and translation chains have `posts.translation_of_id`. But **citations** carry no language metadata today: an editor reviewing a post sourced from a Spanish-language Instagram thread can't see at a glance that the source was Spanish.
+
+- **Scope:** Add `post_sources.source_language TEXT NULL` (BCP-47 code, e.g. `en`, `es`, `hmn`, `so`). Populated by Root Signal when it extracts a non-English signal. Admin Sources panel renders a subtle language chip when set and differs from the post's `source_language`. No constraint — free-form text, with the 55 BCP-47 codes Signal already uses as the de-facto reference.
+- **Why not a tag kind:** per-citation metadata belongs on the citation row, not as a polymorphic tag attachment. Same rationale as `content_hash` / `confidence` / `platform_id` — already columns on `post_sources`.
+- **Blocking:** Root Signal needs to send it in the citations envelope. Addendum 02 if / when we write one.
+
+#### 1.15 Assumptions we're not building (intentionally omitted from handoff)
 
 - **HMAC body signing.** Bearer token over HTTPS is sufficient for the threat model. If we later need replay protection beyond what idempotency keys provide, we add HMAC then.
 - **Feedback webhook to Signal.** Editorial → Signal lifecycle notifications (published / rejected / edited) would be useful as training signal for them, but they don't need it to build the ingest integration. Out of scope for this cycle.
