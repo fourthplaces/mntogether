@@ -277,4 +277,159 @@ impl Organization {
             .await?;
         Ok(())
     }
+
+    // ========================================================================
+    // Ingest-time dedup lookups (spec §7.1).
+    // ========================================================================
+
+    /// Find an organization whose website source's domain matches the supplied
+    /// domain (case-insensitive, already-normalised by the caller — no `www.`
+    /// prefix, no trailing slash). Traverses
+    /// `organizations → sources → website_sources`. Returns the most-recently-
+    /// created match when multiple orgs share a domain (rare but possible
+    /// before dedup lands).
+    pub async fn find_by_website_domain(
+        domain: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT o.*
+            FROM organizations o
+            JOIN sources s ON s.organization_id = o.id
+            JOIN website_sources ws ON ws.source_id = s.id
+            WHERE LOWER(ws.domain) = LOWER($1)
+            ORDER BY o.created_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(domain)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Exact name match (case-insensitive). Spec §7.1 step 3.
+    pub async fn find_by_name(name: &str, pool: &PgPool) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM organizations
+            WHERE LOWER(name) = LOWER($1)
+            ORDER BY created_at ASC
+            LIMIT 1
+            "#,
+        )
+        .bind(name)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// The primary source for this organization (the one post_sources rows
+    /// should point at). Prefers website sources, falls back to any source.
+    pub async fn primary_source_id(
+        id: OrganizationId,
+        pool: &PgPool,
+    ) -> Result<Option<uuid::Uuid>> {
+        sqlx::query_scalar::<_, uuid::Uuid>(
+            r#"
+            SELECT s.id FROM sources s
+            WHERE s.organization_id = $1
+            ORDER BY
+                CASE s.source_type WHEN 'website' THEN 0 ELSE 1 END,
+                s.created_at ASC
+            LIMIT 1
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Ensure a website source exists for this organization. Called during
+    /// ingest when a submission carries a website but no matching source row
+    /// is yet linked. Returns the source_id ready to feed into post_sources.
+    pub async fn ensure_website_source(
+        id: OrganizationId,
+        domain: &str,
+        url: &str,
+        pool: &PgPool,
+    ) -> Result<uuid::Uuid> {
+        // First: is there already a source for this domain?
+        if let Some(existing) = sqlx::query_scalar::<_, uuid::Uuid>(
+            r#"
+            SELECT s.id FROM sources s
+            JOIN website_sources ws ON ws.source_id = s.id
+            WHERE s.organization_id = $1 AND LOWER(ws.domain) = LOWER($2)
+            LIMIT 1
+            "#,
+        )
+        .bind(id)
+        .bind(domain)
+        .fetch_optional(pool)
+        .await?
+        {
+            return Ok(existing);
+        }
+
+        // Insert parent `sources` row.
+        let source_id: uuid::Uuid = sqlx::query_scalar(
+            r#"
+            INSERT INTO sources (source_type, url, organization_id, status, active)
+            VALUES ('website', $1, $2, 'approved', true)
+            RETURNING id
+            "#,
+        )
+        .bind(url)
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+        // Insert child `website_sources` row. If the domain is already used by
+        // another org (rare), fall through — the post_sources row will still
+        // reference a valid parent source.
+        let _ = sqlx::query(
+            r#"
+            INSERT INTO website_sources (source_id, domain)
+            VALUES ($1, $2)
+            ON CONFLICT (domain) DO NOTHING
+            "#,
+        )
+        .bind(source_id)
+        .bind(domain)
+        .execute(pool)
+        .await?;
+
+        Ok(source_id)
+    }
+
+    /// Enrich an existing org with new submission metadata. Only fills
+    /// columns that are currently NULL (matches §7.1 "enrich NULL fields"
+    /// semantics). `name` is updated only when the stored row's name is
+    /// empty, which shouldn't normally happen but is cheap to guard.
+    pub async fn enrich_if_null(
+        id: OrganizationId,
+        name: &str,
+        description: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE organizations
+            SET
+                name = CASE WHEN name IS NULL OR name = '' THEN $2 ELSE name END,
+                description = COALESCE(description, $3),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(name)
+        .bind(description)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
 }

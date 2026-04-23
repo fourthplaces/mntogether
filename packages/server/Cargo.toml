@@ -79,6 +79,9 @@ hex = "0.4"
 # Base64 encoding (for cursor pagination)
 base64 = "0.22"
 
+# Cryptographically-random token body generation (api_keys.issue).
+rand = "0.8"
+
 # Builder pattern
 typed-builder = "0.20"
 
@@ -103,3 +106,8 @@ test-context = "0.3"
 testcontainers = { workspace = true }
 testcontainers-modules = { version = "0.11", features = ["postgres"] }
 indexmap = "2.0"
+
+# Integration-test harness uses tower::ServiceExt::oneshot + http::Request
+# to exercise the Axum Router without binding a real TCP port.
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

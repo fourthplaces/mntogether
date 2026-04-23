@@ -337,7 +337,7 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.server.callService("Posts", "create_post", {
+      const result = await ctx.server.callService("Posts", "admin_create", {
         title: args.input.title,
         body_raw: args.input.bodyRaw,
         post_type: args.input.postType,
@@ -548,6 +548,32 @@ export const postResolvers = {
       const ast = parent.body_ast ?? parent.bodyAst;
       if (!ast) return null;
       return typeof ast === "string" ? ast : JSON.stringify(ast);
+    },
+
+    // `Post.sourceUrl` was previously resolved from the dropped
+    // `posts.source_url` column (migration 000213). It now reads from the
+    // primary `post_sources` row via the field_groups endpoint's new
+    // `primary_source_url` field (Worktree 3 §1.11).
+    sourceUrl: async (
+      parent: {
+        id: string;
+        sourceUrl?: string | null;
+        source_url?: string | null;
+        primarySourceUrl?: string | null;
+        primary_source_url?: string | null;
+      },
+      _args: unknown,
+      ctx: GraphQLContext,
+    ) => {
+      if (parent.sourceUrl != null) return parent.sourceUrl;
+      if (parent.source_url != null) return parent.source_url;
+      if (parent.primarySourceUrl != null) return parent.primarySourceUrl;
+      if (parent.primary_source_url != null) return parent.primary_source_url;
+      const fg = await ctx.server.callService<{
+        primary_source_url?: string | null;
+        primarySourceUrl?: string | null;
+      }>("Post", `${parent.id}/field_groups`, {});
+      return fg.primary_source_url ?? fg.primarySourceUrl ?? null;
     },
 
     organization: async (
