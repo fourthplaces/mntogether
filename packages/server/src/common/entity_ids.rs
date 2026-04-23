@@ -104,6 +104,13 @@ pub struct Locatable;
 /// Marker type for OrganizationLink entities.
 pub struct OrganizationLink;
 
+/// Marker type for ApiKey entities (service-client Bearer tokens).
+pub struct ApiKey;
+
+/// Marker type for SourceIndividual entities (individual authors cited as
+/// post sources; parallel to `organizations`).
+pub struct SourceIndividual;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -189,3 +196,8 @@ pub type LocatableId = Id<Locatable>;
 /// Typed ID for OrganizationLink entities.
 pub type OrganizationLinkId = Id<OrganizationLink>;
 
+/// Typed ID for ApiKey entities.
+pub type ApiKeyId = Id<ApiKey>;
+
+/// Typed ID for SourceIndividual entities.
+pub type SourceIndividualId = Id<SourceIndividual>;

@@ -6,7 +6,20 @@ use uuid::Uuid;
 
 use crate::domains::media::models::{DesiredRef, MediaReference};
 
-/// Media field group: images with caption and credit.
+/// Ingest-path media input: the outcome of processing one citation's
+/// `field_groups.media[]` entry. When the media pipeline (Worktree 4) is
+/// wired up, `media_id` will carry a Library FK and `image_url` the internal
+/// URL; until then, `image_url` holds the external `source_image_url`.
+#[derive(Debug, Clone)]
+pub struct PostMediaInput {
+    pub image_url: Option<String>,
+    pub caption: Option<String>,
+    pub credit: Option<String>,
+    pub alt_text: Option<String>,
+    pub media_id: Option<Uuid>,
+}
+
+/// Media field group: images with caption, credit, and accessibility text.
 /// 1:many relationship with posts.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct PostMediaRecord {
@@ -19,6 +32,7 @@ pub struct PostMediaRecord {
     /// FK to media.id when this image came from the Library. NULL when
     /// image_url is an external paste / legacy value.
     pub media_id: Option<Uuid>,
+    pub alt_text: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -90,5 +104,41 @@ impl PostMediaRecord {
         MediaReference::reconcile("post_hero", post_id, &desired, pool).await?;
 
         Ok(row)
+    }
+
+    /// Replace every `post_media` row for a post with the supplied ingest
+    /// inputs, preserving submission order. Mirrors `PostItem::replace_all`.
+    /// Media-library reconciliation for library-backed images is handled at
+    /// a higher level (Worktree 4); this function only writes the rows.
+    pub async fn replace_all(
+        post_id: Uuid,
+        items: &[PostMediaInput],
+        pool: &PgPool,
+    ) -> Result<()> {
+        let mut tx = pool.begin().await?;
+        sqlx::query("DELETE FROM post_media WHERE post_id = $1")
+            .bind(post_id)
+            .execute(&mut *tx)
+            .await?;
+        for (i, m) in items.iter().enumerate() {
+            sqlx::query(
+                r#"
+                INSERT INTO post_media
+                    (post_id, image_url, caption, credit, alt_text, sort_order, media_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                "#,
+            )
+            .bind(post_id)
+            .bind(m.image_url.as_deref())
+            .bind(m.caption.as_deref())
+            .bind(m.credit.as_deref())
+            .bind(m.alt_text.as_deref())
+            .bind(i as i32)
+            .bind(m.media_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
 }

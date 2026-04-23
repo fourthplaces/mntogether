@@ -17,6 +17,14 @@ pub struct PostScheduleEntry {
     pub created_at: DateTime<Utc>,
 }
 
+/// Input to replace_all — single `day / opens / closes` triple.
+#[derive(Debug, Clone)]
+pub struct PostScheduleInput {
+    pub day: String,
+    pub opens: String,
+    pub closes: String,
+}
+
 impl PostScheduleEntry {
     /// Batch-fetch schedule entries for multiple posts in a single query.
     pub async fn find_by_post_ids(post_ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
@@ -27,5 +35,39 @@ impl PostScheduleEntry {
         .fetch_all(pool)
         .await?;
         Ok(rows)
+    }
+
+    /// Replace the schedule block for a post: wipe every row, re-insert the
+    /// new set in submission order. Mirrors `PostItem::replace_all`.
+    pub async fn replace_all(
+        post_id: Uuid,
+        entries: &[PostScheduleInput],
+        pool: &PgPool,
+    ) -> Result<()> {
+        let mut tx = pool.begin().await?;
+
+        sqlx::query("DELETE FROM post_schedule WHERE post_id = $1")
+            .bind(post_id)
+            .execute(&mut *tx)
+            .await?;
+
+        for (idx, e) in entries.iter().enumerate() {
+            sqlx::query(
+                r#"
+                INSERT INTO post_schedule (post_id, day, opens, closes, sort_order)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+            )
+            .bind(post_id)
+            .bind(&e.day)
+            .bind(&e.opens)
+            .bind(&e.closes)
+            .bind(idx as i32)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
     }
 }

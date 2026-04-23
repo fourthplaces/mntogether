@@ -3,7 +3,9 @@
 //! Merges the Posts stateless service and PostObject virtual object handlers
 //! into a single Axum route file.
 
+use axum::body::Bytes;
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{Json, Router};
 use rust_decimal::prelude::ToPrimitive;
@@ -11,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::api::auth::{AdminUser, OptionalUser};
+use crate::api::auth::{AdminUser, OptionalUser, ServiceClientAuth};
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::state::AppState;
 use crate::common::{PaginationArgs, PostId, ScheduleId};
@@ -141,8 +143,10 @@ pub struct SchedulesForEntityRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExpireStalePostsRequest {}
 
+/// Admin post-creation request — used by the admin UI's GraphQL createPost.
+/// Distinct from the Root Signal ingest path; lives at `/Posts/admin_create`.
 #[derive(Debug, Clone, Deserialize)]
-pub struct CreatePostRequest {
+pub struct AdminCreatePostRequest {
     pub title: String,
     pub body_raw: String,
     pub post_type: Option<String>,
@@ -151,6 +155,7 @@ pub struct CreatePostRequest {
     pub is_urgent: Option<bool>,
     pub location: Option<String>,
 }
+
 
 // =============================================================================
 // Request types — Post virtual object (keyed by post_id)
@@ -1510,10 +1515,101 @@ async fn stats(
     }))
 }
 
+/// Root Signal ingest endpoint (§19 of ROOT_SIGNAL_API_REQUEST.md).
+///
+/// Accepts the full envelope documented in `ROOT_SIGNAL_DATA_CONTRACT.md`,
+/// authenticated via `Authorization: Bearer rsk_*` (ServiceClient). Wrapped
+/// in idempotency-key handling per spec §12.3:
+///
+///   * Same (api_key, X-Idempotency-Key) + matching body hash → 201 with the
+///     original response body and `idempotency_key_seen_before: true`. No
+///     reprocessing.
+///   * Same key + different hash → 409 `idempotency_conflict`.
+///   * Missing `X-Idempotency-Key` → accepted but without idempotency
+///     protection; the handler will still process. (Client bug — Root Signal
+///     is required to send it per §12.3 but we don't reject on it.)
 async fn create_post(
     State(state): State<AppState>,
+    ServiceClientAuth(client): ServiceClientAuth,
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<(axum::http::StatusCode, Json<serde_json::Value>)> {
+    use crate::domains::posts::activities::ingest_post::{self, IngestEnvelope};
+    use crate::domains::posts::models::{
+        api_idempotency_key::{hash_canonical_body, ApiIdempotencyKey},
+    };
+
+    // ---- Scope gate ----
+    if !client.has_scope("posts:create") {
+        return Err(ApiError::Forbidden(
+            "api key missing scope 'posts:create'".into(),
+        ));
+    }
+
+    // ---- Idempotency pre-check ----
+    let idem_key = headers
+        .get("x-idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| Uuid::parse_str(s).ok());
+    let payload_hash = hash_canonical_body(&body)
+        .map_err(|_| ApiError::BadRequest("malformed JSON body".into()))?;
+
+    if let Some(key) = idem_key {
+        if let Some(existing) =
+            ApiIdempotencyKey::find(client.id.into_uuid(), key, &state.deps.db_pool).await?
+        {
+            if existing.payload_hash == payload_hash {
+                // Same payload → return the stored response with the marker.
+                let mut body = existing.response_body.clone();
+                if let Some(obj) = body.as_object_mut() {
+                    obj.insert(
+                        "idempotency_key_seen_before".into(),
+                        serde_json::Value::Bool(true),
+                    );
+                }
+                return Ok((axum::http::StatusCode::CREATED, Json(body)));
+            } else {
+                return Err(ApiError::Conflict(
+                    "idempotency_conflict: same key, different payload".into(),
+                ));
+            }
+        }
+    }
+
+    // ---- Parse + ingest ----
+    let envelope: IngestEnvelope = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::BadRequest(format!("malformed envelope: {e}")))?;
+
+    let result = ingest_post::ingest_post(envelope, &state.deps).await?;
+    let response_body = serde_json::to_value(&result)
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("failed to serialise result: {e}")))?;
+
+    // ---- Idempotency post-store ----
+    if let Some(key) = idem_key {
+        if let Err(e) = ApiIdempotencyKey::store(
+            key,
+            client.id.into_uuid(),
+            &payload_hash,
+            201,
+            &response_body,
+            &state.deps.db_pool,
+        )
+        .await
+        {
+            tracing::warn!(error = %e, "failed to persist idempotency key — retries will reprocess");
+        }
+    }
+
+    Ok((axum::http::StatusCode::CREATED, Json(response_body)))
+}
+
+/// Admin-authored post creation (editor UI). Keeps the legacy shape the GraphQL
+/// resolver was calling, now on its own route so it never gets confused with
+/// the ServiceClient-authenticated ingest endpoint.
+async fn admin_create_post(
+    State(state): State<AppState>,
     user: AdminUser,
-    Json(req): Json<CreatePostRequest>,
+    Json(req): Json<AdminCreatePostRequest>,
 ) -> ApiResult<Json<PostResult>> {
     let post = activities::admin_create_post(
         req.title,
@@ -2146,6 +2242,11 @@ pub struct PostFieldGroupsResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_status: Option<PostStatusRecord>,
     pub schedule: Vec<crate::domains::posts::models::PostScheduleEntry>,
+    /// The `source_url` of the primary `post_sources` row (Worktree 3 §1.11).
+    /// GraphQL's `Post.sourceUrl` resolver reads this — the old
+    /// `posts.source_url` column was dropped in migration 000213.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_source_url: Option<String>,
 }
 
 // =============================================================================
@@ -2190,6 +2291,10 @@ async fn get_field_groups(
     let datetimes = PostDatetimeRecord::find_by_post_ids(ids, pool).await?;
     let statuses = PostStatusRecord::find_by_post_ids(ids, pool).await?;
     let schedule = crate::domains::posts::models::PostScheduleEntry::find_by_post_ids(ids, pool).await?;
+    let primary_source =
+        crate::domains::posts::models::PostSource::find_primary(PostId::from_uuid(post_id), pool)
+            .await?;
+    let primary_source_url = primary_source.and_then(|s| s.source_url);
 
     Ok(Json(PostFieldGroupsResult {
         media,
@@ -2201,6 +2306,7 @@ async fn get_field_groups(
         datetime: datetimes.into_iter().next(),
         post_status: statuses.into_iter().next(),
         schedule,
+        primary_source_url,
     }))
 }
 
@@ -2450,6 +2556,7 @@ pub fn router() -> Router<AppState> {
         .route("/Posts/expire_stale_posts", post(expire_stale_posts))
         .route("/Posts/stats", post(stats))
         .route("/Posts/create_post", post(create_post))
+        .route("/Posts/admin_create", post(admin_create_post))
         // --- Post object (keyed, singular) ---
         .route("/Post/{id}/get", post(get_post))
         .route("/Post/{id}/preview", post(preview_post))

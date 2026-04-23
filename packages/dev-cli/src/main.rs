@@ -1,5 +1,6 @@
 //! Root Editorial Dev Dashboard — Ratatui TUI for managing Docker services.
 
+mod apikey;
 mod app;
 mod docker;
 mod events;
@@ -37,6 +38,11 @@ enum Commands {
         /// Docker compose service name (e.g. server, admin-app)
         service: Option<String>,
     },
+    /// Manage service-client API keys (Root Signal ingest tokens).
+    Apikey {
+        #[command(subcommand)]
+        cmd: apikey::ApikeyCommand,
+    },
 }
 
 // ── Entry point ─────────────────────────────────────────────────────
@@ -44,6 +50,15 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // `apikey` talks to Postgres directly — it doesn't need Docker running,
+    // and skipping the engine check lets it work from any terminal including
+    // CI / remote shells.
+    let command = match cli.command {
+        Some(Commands::Apikey { cmd }) => return apikey::run(cmd).await,
+        other => other,
+    };
+
     let repo_root = find_repo_root()?;
 
     if !docker::check_docker_engine().await {
@@ -52,7 +67,8 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     }
 
-    match cli.command {
+    match command {
+        Some(Commands::Apikey { .. }) => unreachable!("handled above"),
         Some(Commands::Start) => {
             println!("  Starting services...");
             docker::compose_up(&repo_root, &[]).await?;

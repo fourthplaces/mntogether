@@ -83,4 +83,46 @@ impl County {
         .await
         .map_err(Into::into)
     }
+
+    /// Insert or return an existing county row by FIPS code. Seed / test
+    /// fixtures use this; in production the counties are loaded once by
+    /// migration 000174 and never added to.
+    pub async fn upsert(
+        fips_code: &str,
+        name: &str,
+        state: &str,
+        latitude: f64,
+        longitude: f64,
+        target_content_weight: i32,
+        is_pseudo: bool,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO counties (
+                fips_code, name, state, latitude, longitude,
+                target_content_weight, is_pseudo
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (fips_code) DO UPDATE SET
+                name = EXCLUDED.name,
+                state = EXCLUDED.state,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                target_content_weight = EXCLUDED.target_content_weight,
+                is_pseudo = EXCLUDED.is_pseudo
+            RETURNING *
+            "#,
+        )
+        .bind(fips_code)
+        .bind(name)
+        .bind(state)
+        .bind(latitude)
+        .bind(longitude)
+        .bind(target_content_weight)
+        .bind(is_pseudo)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
 }
