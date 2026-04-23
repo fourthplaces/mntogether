@@ -21,6 +21,13 @@ pub struct Media {
     pub uploaded_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Populated by the Root Signal media ingest pipeline; NULL for
+    /// editor-uploaded rows.
+    pub source_url: Option<String>,
+    pub source_ingested_at: Option<DateTime<Utc>>,
+    /// SHA-256 of the normalised bytes. Used by the ingest path for
+    /// exact-match dedup; NULL for rows that haven't been through ingest.
+    pub content_hash: Option<String>,
 }
 
 /// Filters for listing media.
@@ -49,6 +56,9 @@ pub struct MediaWithUsage {
     pub uploaded_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub source_url: Option<String>,
+    pub source_ingested_at: Option<DateTime<Utc>>,
+    pub content_hash: Option<String>,
     pub usage_count: i64,
 }
 
@@ -121,6 +131,9 @@ impl Media {
                 uploaded_by: m.uploaded_by,
                 created_at: m.created_at,
                 updated_at: m.updated_at,
+                source_url: m.source_url,
+                source_ingested_at: m.source_ingested_at,
+                content_hash: m.content_hash,
             })
             .collect();
         Ok((bare, total))
@@ -238,6 +251,65 @@ impl Media {
         .bind(content_type)
         .bind(width)
         .bind(height)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
+    }
+
+    /// Look up a media row by its content_hash (SHA-256 over the
+    /// normalised bytes we stored). Used by the Root Signal media
+    /// ingest pipeline to reuse an existing row when the same image is
+    /// submitted twice.
+    pub async fn find_by_content_hash(
+        content_hash: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        let row = sqlx::query_as::<_, Self>(
+            "SELECT * FROM media WHERE content_hash = $1 LIMIT 1",
+        )
+        .bind(content_hash)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row)
+    }
+
+    /// Insert a new media row produced by the Root Signal media ingest
+    /// pipeline. Differs from [`Media::create`] in that it records the
+    /// provenance (`source_url`, `source_ingested_at`) and the content
+    /// hash used for dedup.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_ingested(
+        filename: &str,
+        content_type: &str,
+        size_bytes: i64,
+        storage_key: &str,
+        url: &str,
+        width: Option<i32>,
+        height: Option<i32>,
+        source_url: &str,
+        content_hash: &str,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO media (
+                filename, content_type, size_bytes, storage_key, url,
+                width, height,
+                source_url, source_ingested_at, content_hash
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+            RETURNING *
+            "#,
+        )
+        .bind(filename)
+        .bind(content_type)
+        .bind(size_bytes)
+        .bind(storage_key)
+        .bind(url)
+        .bind(width)
+        .bind(height)
+        .bind(source_url)
+        .bind(content_hash)
         .fetch_one(pool)
         .await?;
         Ok(row)

@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use sqlx::PgPool;
 use std::sync::Arc;
 
-use super::{BasePiiDetector, PiiScrubResult};
+use super::{BasePiiDetector, BaseStorageService, PiiScrubResult};
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 use crate::domains::auth::JwtService;
 use crate::kernel::{ServerDeps, StreamHub, TwilioAdapter};
@@ -78,18 +78,27 @@ impl BasePiiDetector for MockPiiDetector {
 #[derive(Clone)]
 pub struct TestDependencies {
     pub pii_detector: Arc<MockPiiDetector>,
+    pub storage: Option<Arc<dyn BaseStorageService>>,
 }
 
 impl TestDependencies {
     pub fn new() -> Self {
         Self {
             pii_detector: Arc::new(MockPiiDetector::new()),
+            storage: None,
         }
     }
 
     /// Set a mock PII detector
     pub fn mock_pii(mut self, detector: MockPiiDetector) -> Self {
         self.pii_detector = Arc::new(detector);
+        self
+    }
+
+    /// Inject a mock storage adapter. Used by media-ingest tests that
+    /// need a `BaseStorageService` without standing up a real S3.
+    pub fn with_storage(mut self, storage: Arc<dyn BaseStorageService>) -> Self {
+        self.storage = Some(storage);
         self
     }
 
@@ -106,7 +115,7 @@ impl TestDependencies {
             db_pool,
             Arc::new(TwilioAdapter::new(twilio)),
             self.pii_detector,
-            None, // storage — no S3 in tests
+            self.storage,
             jwt_service,
             StreamHub::new(),
             true,   // test_identifier_enabled

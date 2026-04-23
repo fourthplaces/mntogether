@@ -10,6 +10,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_s3::presigning::PresigningConfig;
+use aws_sdk_s3::primitives::ByteStream;
 use std::time::Duration;
 
 use super::BaseStorageService;
@@ -96,6 +97,24 @@ impl BaseStorageService for S3StorageAdapter {
             .map_err(|e| anyhow::anyhow!("presign error: {}", e))?;
 
         Ok(presigned.uri().to_string())
+    }
+
+    async fn put_object(
+        &self,
+        key: &str,
+        body: Vec<u8>,
+        content_type: &str,
+    ) -> Result<()> {
+        self.client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .content_type(content_type)
+            .body(ByteStream::from(body))
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("put_object error: {}", e))?;
+        Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {

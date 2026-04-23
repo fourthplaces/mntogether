@@ -56,9 +56,19 @@ dataloader = "0.18"
 schemars = "0.8"
 
 # HTTP client
-reqwest = { workspace = true }
+# `stream` — needed by the media ingest fetcher to enforce the 5 MiB cap
+# while the body is still being read (Content-Length can lie).
+reqwest = { workspace = true, features = ["stream"] }
 url = "2.5"
 hyper = { version = "1", features = ["full"] }
+bytes = "1"
+
+# Image decoding + re-encoding (Root Signal media ingest pipeline).
+# JPEG/PNG/WebP are covered by the `image` crate directly. AVIF needs
+# `libdav1d` and is deferred to a follow-up — see
+# domains/media/ingest/normalise.rs for the TODO.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+webp = "0.3"
 
 # S3-compatible object storage (MinIO / AWS S3 / R2)
 aws-config = { version = "1", features = ["behavior-version-latest"] }
