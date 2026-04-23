@@ -55,6 +55,14 @@ export default function WorkflowPage() {
   // fallback is a blanket confirmation dialog: editors must acknowledge
   // that seed rows, if any are slotted, would ship with the batch.
   const [batchPublishConfirmOpen, setBatchPublishConfirmOpen] = useState(false);
+  // After a batch publish completes, surface the server's per-id result so
+  // editors can see which editions were skipped and why (the empty-slots
+  // gate fires per edition, so a partial batch is the common case).
+  const [batchResult, setBatchResult] = useState<{
+    succeeded: number;
+    failed: number;
+    errors: Array<{ editionId: string; message: string }>;
+  } | null>(null);
 
   const mutationContext = {
     additionalTypenames: ["Edition", "EditionConnection"],
@@ -178,8 +186,35 @@ export default function WorkflowPage() {
   const runPublishAll = useCallback(async () => {
     const approvedIds = editionsByColumn.approved.map((e) => e.id);
     if (approvedIds.length === 0) return;
-    await batchPublishEditions({ ids: approvedIds }, mutationContext);
+    const result = await batchPublishEditions({ ids: approvedIds }, mutationContext);
+    const r = result.data?.batchPublishEditions;
+    if (r) {
+      setBatchResult({
+        succeeded: r.succeeded,
+        failed: r.failed,
+        errors: (r.errors ?? []).map((e) => ({
+          editionId: e.editionId,
+          message: e.message,
+        })),
+      });
+    }
   }, [editionsByColumn, batchPublishEditions, mutationContext]);
+
+  // Resolve edition_id → county label for the results dialog. Scope the map
+  // to what was on the board before the batch ran (the published editions
+  // drop off `latestEditions` after success, so post-batch lookups fail).
+  const editionLabel = useCallback(
+    (editionId: string): string => {
+      const cards = [
+        ...editionsByColumn.approved,
+        ...editionsByColumn.in_review,
+        ...editionsByColumn.draft,
+      ];
+      const card = cards.find((c) => c.id === editionId);
+      return card ? card.countyName : editionId.slice(0, 8);
+    },
+    [editionsByColumn]
+  );
 
   const handlePublishAll = useCallback(() => {
     if (editionsByColumn.approved.length === 0) return;
@@ -280,14 +315,14 @@ export default function WorkflowPage() {
           <DialogHeader>
             <DialogTitle>Publish {approvedCount} approved editions?</DialogTitle>
             <DialogDescription>
-              Batch publish runs the publish mutation for every approved
-              edition at once. It does <strong>not</strong> check for seed
-              content per-edition — if any approved edition still has dummy
-              posts or widgets slotted, they will ship.
+              Each edition is published individually and gated on having at
+              least one slotted post or widget — empty editions are skipped
+              automatically and listed after the batch completes.
               <br /><br />
-              If you aren&rsquo;t sure, cancel, open each approved edition
-              detail page, and publish individually. Seed-contaminated
-              editions block on the detail page with an explicit override.
+              Seed content is <strong>not</strong> gated at the server level,
+              so if any approved edition still has dummy rows slotted they
+              will ship. Open the detail page of any in doubt first — it has
+              an explicit override prompt when seed content is present.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -304,6 +339,46 @@ export default function WorkflowPage() {
             >
               Publish {approvedCount} editions
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch-publish result — surfaces per-id skips. The server gates each
+       * publish on populated slots; editions with no posts/widgets slotted
+       * are listed here with the server's reason string. */}
+      <Dialog
+        open={batchResult !== null}
+        onOpenChange={(open) => !open && setBatchResult(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {batchResult?.failed
+                ? `Published ${batchResult.succeeded}, skipped ${batchResult.failed}`
+                : `Published ${batchResult?.succeeded ?? 0} editions`}
+            </DialogTitle>
+            <DialogDescription>
+              {batchResult && batchResult.errors.length > 0
+                ? "The following editions were skipped:"
+                : "Every approved edition was published successfully."}
+            </DialogDescription>
+          </DialogHeader>
+          {batchResult && batchResult.errors.length > 0 && (
+            <ul className="list-disc pl-5 space-y-1 text-sm text-foreground">
+              {batchResult.errors.map((e) => (
+                <li key={e.editionId}>
+                  <span className="font-medium">
+                    {editionLabel(e.editionId)}
+                  </span>{" "}
+                  — {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Close
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>

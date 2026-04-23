@@ -268,6 +268,16 @@ export const PublishEditionMutation = graphql(`
   }
 `);
 
+export const UnpublishEditionMutation = graphql(`
+  mutation UnpublishEdition($id: ID!) {
+    unpublishEdition(id: $id) {
+      id
+      status
+      publishedAt
+    }
+  }
+`);
+
 export const ArchiveEditionMutation = graphql(`
   mutation ArchiveEdition($id: ID!) {
     archiveEdition(id: $id) {
@@ -380,6 +390,10 @@ export const BatchApproveEditionsMutation = graphql(`
     batchApproveEditions(ids: $ids) {
       succeeded
       failed
+      errors {
+        editionId
+        message
+      }
     }
   }
 `);
@@ -389,6 +403,10 @@ export const BatchPublishEditionsMutation = graphql(`
     batchPublishEditions(ids: $ids) {
       succeeded
       failed
+      errors {
+        editionId
+        message
+      }
     }
   }
 `);

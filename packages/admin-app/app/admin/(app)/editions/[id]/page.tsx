@@ -91,6 +91,7 @@ import {
   PostTemplatesQuery,
   GenerateEditionMutation,
   PublishEditionMutation,
+  UnpublishEditionMutation,
   ArchiveEditionMutation,
   ReviewEditionMutation,
   ApproveEditionMutation,
@@ -382,6 +383,7 @@ export default function EditionDetailPage() {
   const [, reviewEdition] = useMutation(ReviewEditionMutation);
   const [, approveEdition] = useMutation(ApproveEditionMutation);
   const [, publishEdition] = useMutation(PublishEditionMutation);
+  const [, unpublishEdition] = useMutation(UnpublishEditionMutation);
   const [, archiveEdition] = useMutation(ArchiveEditionMutation);
 
   const [actionError, setActionError] = useState<string | null>(null);
@@ -393,6 +395,11 @@ export default function EditionDetailPage() {
   // (clicking the button while the warning is visible) so editors can't
   // auto-pilot past it.
   const [seedPublishGateOpen, setSeedPublishGateOpen] = useState(false);
+  // Unpublish confirmation — reverse transition (published → approved) is a
+  // deliberate, user-initiated action, so we gate it behind a confirm prompt.
+  // Once unpublished the edition returns to the editable `approved` state
+  // and the public site stops serving it until the editor re-publishes.
+  const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
 
   // Auto-review: opening a draft edition transitions it to in_review
   const hasAutoReviewed = useRef(false);
@@ -450,6 +457,23 @@ export default function EditionDetailPage() {
     },
     [edition, runStatusMutation]
   );
+
+  const runUnpublish = useCallback(async () => {
+    if (!edition) return;
+    setActionError(null);
+    setActionSuccess(null);
+    setStatusChanging(true);
+    const result = await unpublishEdition({ id }, mutCtx);
+    setStatusChanging(false);
+    setUnpublishDialogOpen(false);
+    if (result.error) {
+      setActionError(result.error.message);
+    } else {
+      setActionSuccess("Edition unpublished — back to approved, ready for edits");
+      refetchEdition({ requestPolicy: "network-only" });
+      setTimeout(() => setActionSuccess(null), 4000);
+    }
+  }, [edition, id, mutCtx, unpublishEdition, refetchEdition]);
 
   const isEditable = edition ? (edition.status === "in_review" || edition.status === "draft") : false;
 
@@ -528,6 +552,16 @@ export default function EditionDetailPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {edition.status === "published" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={statusChanging}
+                    onClick={() => setUnpublishDialogOpen(true)}
+                  >
+                    Unpublish
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -660,6 +694,40 @@ export default function EditionDetailPage() {
               }}
             >
               Publish anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unpublish confirmation — reverse transition from published back to
+       * approved. Public broadsheet stops serving this edition until it's
+       * re-published; published_at is preserved so the "first went live on"
+       * record stays intact. */}
+      <Dialog open={unpublishDialogOpen} onOpenChange={setUnpublishDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unpublish this edition?</DialogTitle>
+            <DialogDescription>
+              The edition returns to <strong>Approved</strong> and the public
+              broadsheet stops serving it immediately. Readers hitting the
+              county URL will see a 404 (or fall back to the previous week&rsquo;s
+              edition) until you re-publish.
+              <br /><br />
+              Use this when you need to fix a live edition mid-week: unpublish,
+              edit the slots, then publish again. The original publish time is
+              preserved on re-publish.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              disabled={statusChanging}
+              onClick={runUnpublish}
+            >
+              Unpublish
             </Button>
           </DialogFooter>
         </DialogContent>
