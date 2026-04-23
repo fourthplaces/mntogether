@@ -19,6 +19,7 @@ export const WidgetListQuery = graphql(`
       }
       startDate
       endDate
+      isSeed
       createdAt
       updatedAt
     }
@@ -41,6 +42,7 @@ export const WidgetDetailQuery = graphql(`
       }
       startDate
       endDate
+      isSeed
       createdAt
       updatedAt
     }
@@ -63,6 +65,7 @@ export const EditionWidgetsQuery = graphql(`
       }
       startDate
       endDate
+      isSeed
       createdAt
       updatedAt
     }
@@ -87,6 +90,7 @@ export const CreateWidgetMutation = graphql(`
       }
       startDate
       endDate
+      isSeed
       createdAt
       updatedAt
     }
@@ -109,6 +113,7 @@ export const UpdateWidgetMutation = graphql(`
       }
       startDate
       endDate
+      isSeed
       createdAt
       updatedAt
     }

@@ -36,6 +36,12 @@ pub struct SlotWithPost {
     pub post_post_type: Option<String>,
     pub post_weight: Option<String>,
     pub post_status: Option<String>,
+    // True when the joined post/widget is a seed row. Drives the
+    // edition-level publish gate: any is_seed slot flags the edition
+    // as contaminated. Nullable because only one side is populated
+    // per slot (and NULL for missing joins).
+    pub post_is_seed: Option<bool>,
+    pub widget_is_seed: Option<bool>,
     // Widget fields (joined from widgets table, nullable for post slots)
     pub widget_type: Option<String>,
     pub widget_authoring_mode: Option<String>,
@@ -275,6 +281,8 @@ impl EditionSlot {
                 p.post_type AS post_post_type,
                 p.weight AS post_weight,
                 p.status AS post_status,
+                p.is_seed AS post_is_seed,
+                w.is_seed AS widget_is_seed,
                 w.widget_type AS widget_type,
                 w.authoring_mode AS widget_authoring_mode,
                 w.data AS widget_data

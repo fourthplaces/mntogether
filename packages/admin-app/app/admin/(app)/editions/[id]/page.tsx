@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 import {
   Table,
   TableBody,
@@ -385,6 +386,12 @@ export default function EditionDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [statusChanging, setStatusChanging] = useState(false);
+  // Seed-contamination gate — when the user tries to publish an edition
+  // that has at least one is_seed post or widget slotted, we block the
+  // mutation and raise a confirmation dialog. The override is deliberate
+  // (clicking the button while the warning is visible) so editors can't
+  // auto-pilot past it.
+  const [seedPublishGateOpen, setSeedPublishGateOpen] = useState(false);
 
   // Auto-review: opening a draft edition transitions it to in_review
   const hasAutoReviewed = useRef(false);
@@ -398,9 +405,9 @@ export default function EditionDetailPage() {
     }
   }, [edition?.status, id, mutCtx, reviewEdition, refetchEdition]);
 
-  const handleStatusChange = useCallback(
+  const runStatusMutation = useCallback(
     async (newStatus: string) => {
-      if (!edition || newStatus === edition.status) return;
+      if (!edition) return;
       setActionError(null);
       setActionSuccess(null);
       setStatusChanging(true);
@@ -426,6 +433,21 @@ export default function EditionDetailPage() {
       }
     },
     [id, edition, mutCtx, reviewEdition, approveEdition, publishEdition, archiveEdition, refetchEdition]
+  );
+
+  const handleStatusChange = useCallback(
+    async (newStatus: string) => {
+      if (!edition || newStatus === edition.status) return;
+      // Intercept publish when the edition contains seed data — force
+      // the user through an explicit override dialog. Other transitions
+      // (in_review, approved, archived) pass through unchanged.
+      if (newStatus === "published" && edition.containsSeedContent) {
+        setSeedPublishGateOpen(true);
+        return;
+      }
+      await runStatusMutation(newStatus);
+    },
+    [edition, runStatusMutation]
   );
 
   const isEditable = edition ? (edition.status === "in_review" || edition.status === "draft") : false;
@@ -548,6 +570,16 @@ export default function EditionDetailPage() {
          * row cards below. All children (alerts + tab content wrapper)
          * inherit the padded width. */}
         <div className="w-full max-w-6xl mx-auto px-6">
+          {edition.containsSeedContent && (
+            <Alert variant="warning" className="mt-4">
+              <AlertDescription>
+                <strong>Contains seed content.</strong> At least one slotted
+                post or widget is dummy data from the dev seeder. Publishing
+                is blocked until the seed rows are swapped for real content
+                — or overridden explicitly.
+              </AlertDescription>
+            </Alert>
+          )}
           {actionError && (
             <Alert variant="error" className="mt-4">
               <AlertDescription>{actionError}</AlertDescription>
@@ -582,6 +614,42 @@ export default function EditionDetailPage() {
           </div>
         </div>
       </Tabs>
+
+      {/* Publish gate — only rendered when the user tried to publish a
+       * seed-contaminated edition. Confirming routes through the
+       * standard publish mutation; cancelling closes the dialog with
+       * no state change. */}
+      <Dialog open={seedPublishGateOpen} onOpenChange={setSeedPublishGateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Publish edition with seed content?</DialogTitle>
+            <DialogDescription>
+              This edition has one or more slotted posts or widgets marked as
+              SEED (dummy data from <code>data/seed.mjs</code>). Publishing
+              will make that dummy content live on the public broadsheet.
+              <br /><br />
+              Only override if you deliberately want dummy data in a published
+              edition (staging walkthroughs, screenshots). For real cutover,
+              swap seed slots for real content first.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Cancel
+            </DialogClose>
+            <Button
+              variant="destructive"
+              disabled={statusChanging}
+              onClick={async () => {
+                setSeedPublishGateOpen(false);
+                await runStatusMutation("published");
+              }}
+            >
+              Publish anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -2691,6 +2759,7 @@ function WidgetSlotCard({
               widget
             </Badge>
             <span className="text-[10px] text-muted-foreground">{widget.authoringMode}</span>
+            <SeedBadgeIf isSeed={widget.isSeed} size="sm" />
           </div>
         </div>
         {isEditable && (
@@ -2777,6 +2846,7 @@ function DraggableSlotCard({
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
             {slot.post && <PostTypeBadge type={slot.post.postType} />}
             {slot.post && <WeightBadge weight={slot.post.weight} />}
+            <SeedBadgeIf isSeed={slot.post?.isSeed} size="sm" />
             {isEditable && postTemplates.length > 0 && slot.postTemplate && (
               <Button
                 variant="ghost"

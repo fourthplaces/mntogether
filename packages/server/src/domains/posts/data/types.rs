@@ -16,6 +16,11 @@ pub struct PostType {
     pub submission_type: Option<String>,
     pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
+    /// True when this post was inserted by the dev seed script. Surfaced
+    /// all the way to the admin CMS so every dummy entity is visibly
+    /// labeled and a seed-contaminated edition can't be published by
+    /// accident.
+    pub is_seed: bool,
 }
 
 impl From<Post> for PostType {
@@ -40,6 +45,7 @@ impl From<Post> for PostType {
             submission_type: post.submission_type,
             created_at: post.created_at,
             published_at: post.published_at,
+            is_seed: post.is_seed,
         }
     }
 }

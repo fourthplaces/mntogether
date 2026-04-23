@@ -393,6 +393,9 @@ pub struct PostResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicate_of_id: Option<Uuid>,
     pub source_language: String,
+    /// True when this post was inserted by the dev seed script. Surfaced
+    /// to the admin CMS so every dummy entity is visibly labeled.
+    pub is_seed: bool,
 }
 
 impl From<Post> for PostResult {
@@ -432,6 +435,7 @@ impl From<Post> for PostResult {
             translation_of_id: p.translation_of_id.map(|id| id.into_uuid()),
             duplicate_of_id: p.duplicate_of_id.map(|id| id.into_uuid()),
             source_language: p.source_language,
+            is_seed: p.is_seed,
         }
     }
 }
@@ -868,6 +872,7 @@ async fn list(
                         translation_of_id: None,
                         duplicate_of_id: None,
                         source_language: "en".to_string(),
+                        is_seed: pwd.is_seed,
                     }
                 })
                 .collect(),
@@ -912,6 +917,7 @@ async fn list(
                 .into_iter()
                 .map(|e| {
                     let id = e.node.id;
+                    let is_seed = e.node.is_seed;
                     PostResult {
                         id,
                         title: e.node.title,
@@ -947,6 +953,7 @@ async fn list(
                         translation_of_id: None,
                         duplicate_of_id: None,
                         source_language: "en".to_string(),
+                        is_seed,
                     }
                 })
                 .collect(),
@@ -1074,6 +1081,7 @@ async fn search_nearby(
                     translation_of_id: None,
                     duplicate_of_id: None,
                     source_language: "en".to_string(),
+                    is_seed: pwd.is_seed,
                 },
                 distance_miles: pwd.distance_miles,
             })
@@ -1276,6 +1284,7 @@ async fn list_by_organization(
             .into_iter()
             .map(|p| {
                 let id = p.id.into_uuid();
+                let is_seed = p.is_seed;
                 PostResult {
                     id,
                     title: p.title,
@@ -1311,6 +1320,7 @@ async fn list_by_organization(
                     translation_of_id: None,
                     duplicate_of_id: None,
                     source_language: "en".to_string(),
+                    is_seed,
                 }
             })
             .collect(),

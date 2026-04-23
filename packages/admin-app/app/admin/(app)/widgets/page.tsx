@@ -32,6 +32,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Plus } from "lucide-react";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 
 // ─── Widget type definitions ────────────────────────────────────────────────
 
@@ -227,12 +228,15 @@ export default function WidgetsPage() {
                   onClick={() => router.push(`/admin/widgets/${w.id}`)}
                 >
                   <TableCell>
-                    <Badge
-                      variant="secondary"
-                      className={TYPE_COLORS[w.widgetType] ?? ""}
-                    >
-                      {formatType(w.widgetType)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="secondary"
+                        className={TYPE_COLORS[w.widgetType] ?? ""}
+                      >
+                        {formatType(w.widgetType)}
+                      </Badge>
+                      <SeedBadgeIf isSeed={w.isSeed} size="sm" />
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground truncate max-w-xs">
                     {summary || <span className="italic">Empty</span>}

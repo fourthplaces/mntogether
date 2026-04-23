@@ -38,6 +38,10 @@ pub struct Widget {
     pub end_date: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // True when this row was inserted by the dev seed script (data/seed.mjs).
+    // Surfaced to the admin CMS so every dummy entity is visibly labeled
+    // and publishing a seed-contaminated edition is gated.
+    pub is_seed: bool,
 }
 
 /// Parameters for creating a widget.

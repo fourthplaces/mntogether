@@ -8,6 +8,7 @@ export const PostListFields = graphql(`
     status
     postType
     isUrgent
+    isSeed
     location
     createdAt
     publishedAt
@@ -35,6 +36,7 @@ export const PostDetailFields = graphql(`
     status
     postType
     isUrgent
+    isSeed
     location
     zipCode
     createdAt
@@ -139,6 +141,7 @@ export const OrganizationFields = graphql(`
     description
     sourceType
     status
+    isSeed
     createdAt
     updatedAt
   }

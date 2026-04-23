@@ -33,6 +33,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { ArrowLeft, Check, Plus, Trash2, X, ImageIcon } from "lucide-react";
+import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 import { MediaPicker, type PickedMedia } from "@/components/admin/MediaPicker";
 
 // --- Types ------------------------------------------------------------------
@@ -240,9 +241,12 @@ export default function WidgetDetailPage() {
           <div className="space-y-6 min-w-0">
 
             {/* Title */}
-            <h1 className="text-2xl font-bold text-foreground">
-              {TYPE_LABELS[widgetType] ?? widgetType}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-foreground">
+                {TYPE_LABELS[widgetType] ?? widgetType}
+              </h1>
+              <SeedBadgeIf isSeed={widget.isSeed} />
+            </div>
 
             {/* Location & Timing */}
             <div className="border-t border-border pt-4">

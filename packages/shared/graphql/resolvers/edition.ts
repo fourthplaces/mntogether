@@ -73,11 +73,13 @@ interface EditionSlotData {
   postPostType?: string;
   postWeight?: string;
   postStatus?: string;
+  postIsSeed?: boolean;
   // Widget fields (present when kind='widget')
   widgetId?: string;
   widgetType?: string;
   widgetAuthoringMode?: string;
   widgetData?: unknown;
+  widgetIsSeed?: boolean;
 }
 
 // =============================================================================
@@ -169,6 +171,22 @@ export const editionResolvers = {
     sections: (parent: EditionData) => {
       return parent.sections ?? [];
     },
+    // True if any slotted post or widget is seed data. Derived by walking
+    // the already-loaded row tree — no extra RPC. If `rows` aren't loaded
+    // (e.g. the list-edition endpoints skip them), this returns false,
+    // which is safe: the admin UI only runs the publish mutation from
+    // surfaces that do load rows (edition detail, workflow batch-publish
+    // uses server-side contamination check before calling the mutation).
+    containsSeedContent: (parent: EditionData) => {
+      const rows = parent.rows ?? [];
+      for (const row of rows) {
+        for (const slot of row.slots ?? []) {
+          if (slot.postIsSeed === true) return true;
+          if (slot.widgetIsSeed === true) return true;
+        }
+      }
+      return false;
+    },
   },
 
   // Resolve nested objects on EditionRow — template data is embedded from Rust service
@@ -222,6 +240,10 @@ export const editionResolvers = {
         postType: parent.postPostType ?? null,
         weight: parent.postWeight ?? null,
         status: parent.postStatus ?? "active",
+        // Forward is_seed from the slot-embedded post row so the admin
+        // UI can render a SEED badge on slot cards and Edition can
+        // compute containsSeedContent without refetching each post.
+        isSeed: parent.postIsSeed ?? false,
       };
     },
     widget: (parent: EditionSlotData) => {
@@ -234,6 +256,7 @@ export const editionResolvers = {
         data: typeof rawData === "string" ? rawData : JSON.stringify(rawData),
         createdAt: "",
         updatedAt: "",
+        isSeed: parent.widgetIsSeed ?? false,
       };
     },
   },
