@@ -117,6 +117,97 @@ const offsetToDateSql = (days) => {
   return `(NOW() - INTERVAL '${Math.abs(days)} days')::date`;
 };
 
+// Deterministic UUID-ish from any key. Not cryptographic — we just need a
+// stable 8-4-4-4-12 hex string so repeated seeds produce identical rows.
+const seedUuid = (key) => {
+  const h = createHash("md5").update(String(key)).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+};
+const seedHash64 = (key) =>
+  createHash("sha256").update(String(key)).digest("hex");
+
+// Per-post-type citation templates. Each post gets 0-3 extras sampled
+// deterministically by hash(slug). Shape mirrors the Addendum 01 envelope
+// so the seed exercises the same code paths Root Signal will drive.
+const CITE_TEMPLATES = {
+  story: [
+    { platform: "mpr", url: "https://www.mprnews.org/story/<slug>", snippet: "Community leaders describe the growing need as winter approaches.", hint: "article", conf: 85 },
+    { platform: "startribune", url: "https://www.startribune.com/<slug>", snippet: "The program is expected to reach hundreds of families this year.", hint: "article", conf: 82 },
+    { platform: "kare11", url: "https://www.kare11.com/article/news/<slug>", snippet: "Families describe what the help has meant for them.", hint: "article", conf: 78 },
+    { platform: "facebook", url: "https://www.facebook.com/<slug>/posts/<idx>", snippet: "Thank you to everyone who showed up this weekend.", hint: "post", conf: 65 },
+  ],
+  update: [
+    { platform: "mn-gov", url: "https://mn.gov/portal/notice/<slug>", snippet: "Effective this week the department will begin accepting applications.", hint: "press_release", conf: 95 },
+    { platform: "county-gov", url: "https://www.co.hennepin.mn.us/notice/<slug>", snippet: "Residents are advised that service hours are changing.", hint: "press_release", conf: 92 },
+    { platform: "twitter", url: "https://twitter.com/MnDOT/status/<idx>", snippet: "Construction continues through the end of the month.", hint: "post", conf: 70 },
+  ],
+  event: [
+    { platform: "website", url: "https://<slug>.org/events", snippet: "Join us Saturday for our annual community gathering.", hint: "article", conf: 88 },
+    { platform: "instagram", url: "https://www.instagram.com/p/<idx>/", snippet: "Mark your calendars — doors open at 10am.", hint: "post", conf: 72 },
+  ],
+  action: [
+    { platform: "website", url: "https://<slug>.org/get-involved", snippet: "Volunteers needed for the upcoming drive.", hint: "article", conf: 82 },
+    { platform: "facebook", url: "https://www.facebook.com/events/<idx>", snippet: "RSVP to help us plan capacity.", hint: "post", conf: 68 },
+  ],
+  aid: [
+    { platform: "website", url: "https://<slug>.org/resources", snippet: "Services available to all residents, no ID required.", hint: "article", conf: 85 },
+  ],
+  need: [
+    { platform: "website", url: "https://<slug>.org/help", snippet: "Current shortages include winter coats and non-perishables.", hint: "article", conf: 80 },
+  ],
+  reference: [
+    { platform: "mn-gov", url: "https://mn.gov/services/<slug>", snippet: "Eligibility and application details.", hint: "article", conf: 90 },
+  ],
+  person: [
+    { platform: "linkedin", url: "https://www.linkedin.com/in/<slug>", snippet: "Community organizer, 12 years in the field.", hint: "profile", conf: 70 },
+    { platform: "instagram", url: "https://www.instagram.com/<slug>/", snippet: "Personal updates and field photos.", hint: "post", conf: 62 },
+  ],
+  business: [
+    { platform: "instagram", url: "https://www.instagram.com/<slug>/", snippet: "Now open at our new location on Lake Street.", hint: "post", conf: 72 },
+    { platform: "yelp", url: "https://www.yelp.com/biz/<slug>", snippet: "Great food, welcoming staff, reasonable prices.", hint: "article", conf: 60 },
+  ],
+};
+
+const MAX_EXTRAS_BY_TYPE = {
+  story: 3, update: 2, event: 2, action: 1, aid: 1, need: 1,
+  reference: 1, person: 1, business: 2,
+};
+
+// Turn a post title into a URL-safe token for citation URL interpolation.
+const titleToken = (s) =>
+  String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+const extraCitationsFor = (post) => {
+  const type = post.postType || post.post_type;
+  const templates = CITE_TEMPLATES[type] || [];
+  if (templates.length === 0 || !post.title) return [];
+  const cap = MAX_EXTRAS_BY_TYPE[type] ?? 1;
+  const n = parseInt(seedUuid(post.title).replace(/-/g, "").slice(0, 8), 16);
+  const count = n % (cap + 1); // 0..cap inclusive — deterministic distribution
+  const token = titleToken(post.title);
+  const cites = [];
+  for (let i = 0; i < count; i++) {
+    const t = templates[(n + i) % templates.length];
+    cites.push({
+      source_id: seedUuid(`${post.title}::cite::${i}`),
+      source_type: "citation",
+      source_url: t.url
+        .replace(/<slug>/g, token)
+        .replace(/<idx>/g, String(n + i)),
+      snippet: t.snippet,
+      confidence: t.conf,
+      platform_id: t.platform,
+      platform_post_type_hint: t.hint,
+      content_hash: seedHash64(`${post.title}::cite::${i}`),
+    });
+  }
+  return cites;
+};
+
 // ---------------------------------------------------------------------------
 // SQL Generation
 // ---------------------------------------------------------------------------
@@ -520,6 +611,83 @@ WHERE NOT EXISTS (
     WHERE ps.post_id = psa.post_id AND ps.source_id = s.id
 );`);
 out("");
+
+// --- Multi-citation extras -------------------------------------------------
+// Root Signal sends 1–N citations per post (Addendum 01). The per-org seed
+// link above only creates one source per post, which doesn't exercise the
+// multi-citation UI. This block flips the org-seed row to is_primary=true
+// and synthesises 0–3 extras per post with platform_id / snippet / confidence
+// / content_hash populated — enough to test the admin Sources panel,
+// "Set primary" reassignment, and public [signal:UUID] superscripts.
+
+out("-- Mark the org-attribution seed source as primary (one per post)");
+out(`UPDATE post_sources ps
+SET is_primary = true
+WHERE source_type = 'seed'
+  AND NOT EXISTS (
+    SELECT 1 FROM post_sources ps2
+    WHERE ps2.post_id = ps.post_id AND ps2.is_primary = true
+  );`);
+out("");
+
+const extras = [];
+for (const p of posts) {
+  for (const c of extraCitationsFor(p)) {
+    extras.push({ post_title: p.title, ...c });
+  }
+}
+
+if (extras.length > 0) {
+  const touchedPosts = new Set(extras.map((e) => e.post_title)).size;
+  out(`-- Synthesised citations: ${extras.length} rows across ${touchedPosts} posts`);
+  out(`INSERT INTO post_sources (
+  post_id, source_type, source_id, source_url, snippet,
+  confidence, platform_id, platform_post_type_hint, content_hash, is_primary
+)
+SELECT p.id, v.source_type, v.source_id::uuid, v.source_url, v.snippet,
+       v.confidence::int, v.platform_id, v.platform_post_type_hint, v.content_hash, false
+FROM posts p
+JOIN (VALUES`);
+  extras.forEach((e, i) => {
+    const tail = i === extras.length - 1 ? "" : ",";
+    out(
+      `  (${esc(e.post_title)}, ${esc(e.source_type)}, ${esc(e.source_id)}, ${esc(e.source_url)}, ${esc(e.snippet)}, ${e.confidence}, ${esc(e.platform_id)}, ${esc(e.platform_post_type_hint)}, ${esc(e.content_hash)})${tail}`
+    );
+  });
+  out(`) AS v(post_title, source_type, source_id, source_url, snippet, confidence, platform_id, platform_post_type_hint, content_hash)
+  ON p.title = v.post_title
+ON CONFLICT (post_id, source_type, source_id) DO NOTHING;`);
+  out("");
+
+  // Append a [signal:UUID] token to body_raw for every post that got extras,
+  // so the public detail page renders superscripts. Token UUID matches the
+  // first extra citation's source_id to preserve correspondence.
+  const tokenAppends = new Map();
+  for (const e of extras) if (!tokenAppends.has(e.post_title)) tokenAppends.set(e.post_title, e.source_id);
+  out(`-- Append [signal:UUID] citation tokens to body_raw (${tokenAppends.size} posts)`);
+  for (const [title, uuid] of tokenAppends) {
+    out(
+      `UPDATE posts SET body_raw = body_raw || ' [signal:${uuid}]' WHERE title = ${esc(title)} AND body_raw NOT LIKE ${esc(`%[signal:${uuid}]%`)};`
+    );
+  }
+  out("");
+
+  // Any post that has sources but none marked primary (e.g. posts with only
+  // synthesised citations — no owning org) gets its earliest source promoted.
+  // One-row-per-post select keeps us safe from the partial unique index.
+  out("-- Promote earliest source to primary for posts that still have no primary");
+  out(`UPDATE post_sources SET is_primary = true
+WHERE id IN (
+    SELECT DISTINCT ON (ps.post_id) ps.id
+    FROM post_sources ps
+    WHERE NOT EXISTS (
+        SELECT 1 FROM post_sources ps2
+        WHERE ps2.post_id = ps.post_id AND ps2.is_primary = true
+    )
+    ORDER BY ps.post_id, ps.created_at ASC, ps.id ASC
+);`);
+  out("");
+}
 
 // --- Widgets ---------------------------------------------------------------
 // Evergreen widget records. The layout engine picks these up during edition
