@@ -47,8 +47,9 @@ import {
   ListStart,
   LayoutDashboard,
   Puzzle,
+  TriangleAlert,
 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { SeedBadgeIf } from "@/components/admin/SeedBadge";
 import {
@@ -572,11 +573,24 @@ export default function EditionDetailPage() {
         <div className="w-full max-w-6xl mx-auto px-6">
           {edition.containsSeedContent && (
             <Alert variant="warning" className="mt-4">
+              <TriangleAlert />
+              <AlertTitle>Contains seed content</AlertTitle>
               <AlertDescription>
-                <strong>Contains seed content.</strong> At least one slotted
-                post or widget is dummy data from the dev seeder. Publishing
-                is blocked until the seed rows are swapped for real content
-                — or overridden explicitly.
+                <p>
+                  At least one slotted post or widget is dummy data from the
+                  dev seeder. Swap the seed rows for real content in the
+                  Layout tab before publishing.
+                </p>
+                {edition.status === "approved" && (
+                  <button
+                    type="button"
+                    className="mt-1 inline-flex items-center gap-1 font-medium underline underline-offset-2 hover:no-underline"
+                    onClick={() => setSeedPublishGateOpen(true)}
+                  >
+                    Publish anyway
+                    <ChevronRight className="size-3.5" />
+                  </button>
+                )}
               </AlertDescription>
             </Alert>
           )}

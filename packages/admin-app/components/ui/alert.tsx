@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils"
 // rule forces every non-svg direct child into the content column so
 // Alert works with both the subcomponents AND raw content.
 const alertVariants = cva(
+  // Base grid keeps the icon in col 1 and text in col 2 even when the
+  // description wraps. `[&_[data-slot=alert-description]]:text-current`
+  // makes description text inherit the variant color on semantic variants
+  // (success/warning/info/error) instead of always reading muted-foreground.
   "relative w-full rounded-lg border border-border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current [&>*:not(svg)]:col-start-2",
   {
     variants: {
@@ -19,11 +23,11 @@ const alertVariants = cva(
         default: "bg-card text-card-foreground",
         destructive:
           "text-destructive bg-card [&>svg]:text-current *:data-[slot=alert-description]:text-destructive/90",
-        // Semantic status variants
-        success: "bg-success-bg border-success/30 text-success-text",
-        warning: "bg-warning-bg border-warning/30 text-warning-text",
-        info: "bg-info-bg border-info/30 text-info-text",
-        error: "bg-danger-bg border-danger/30 text-danger-text",
+        // Semantic status variants — description inherits the variant color.
+        success: "bg-success-bg border-success/40 text-success-text *:data-[slot=alert-description]:text-current",
+        warning: "bg-warning-bg border-warning/40 text-warning-text *:data-[slot=alert-description]:text-current",
+        info: "bg-info-bg border-info/40 text-info-text *:data-[slot=alert-description]:text-current",
+        error: "bg-danger-bg border-danger/40 text-danger-text *:data-[slot=alert-description]:text-current",
       },
     },
     defaultVariants: {
