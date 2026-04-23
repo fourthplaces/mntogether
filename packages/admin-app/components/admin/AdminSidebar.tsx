@@ -21,7 +21,9 @@ import {
   Users,
   ChevronsUpDown,
   UserCircle,
+  Inbox,
 } from "lucide-react";
+import { SignalInboxBadgeQuery } from "@/lib/graphql/signal-inbox";
 import { LatestEditionsQuery } from "@/lib/graphql/editions";
 import {
   Sidebar,
@@ -81,6 +83,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Content",
     items: [
+      { href: "/admin/signal-inbox", label: "Signal Inbox", icon: <Inbox /> },
       { href: "/admin/signal", label: "Signal", icon: <Radio /> },
       { href: "/admin/posts", label: "Editorial", icon: <PenSquare /> },
       { href: "/admin/widgets", label: "Widgets", icon: <Puzzle /> },
@@ -112,6 +115,10 @@ export function AdminSidebar() {
         (e) => e.status === "draft" || e.status === "in_review"
       ).length || undefined
     : undefined;
+
+  // Signal Inbox badge — count of posts awaiting editor triage.
+  const [{ data: inboxData }] = useQuery({ query: SignalInboxBadgeQuery });
+  const inboxBadge = inboxData?.signalInbox?.totalCount || undefined;
 
   const isItemActive = (item: NavItem) =>
     pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -164,7 +171,11 @@ export function AdminSidebar() {
                 {group.items.map((item) => {
                   const active = isItemActive(item);
                   const itemBadge =
-                    item.href === "/admin/workflow" ? reviewBadge : item.badge;
+                    item.href === "/admin/workflow"
+                      ? reviewBadge
+                      : item.href === "/admin/signal-inbox"
+                        ? inboxBadge
+                        : item.badge;
 
                   return (
                     <SidebarMenuItem key={item.href}>

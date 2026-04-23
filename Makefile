@@ -147,6 +147,18 @@ seed-media-upload:
 seed: seed-media-upload
 	@node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
 
+# Seed a handful of status='in_review' mock posts for the Signal Inbox admin
+# UI (/admin/signal-inbox). Idempotent — reruns refresh the same rows.
+# Drop with `make clear-signal-inbox`.
+seed-signal-inbox:
+	@node data/seed-signal-inbox.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
+
+# Remove the mock signal-inbox rows. Matches on is_seed + submission_type to
+# avoid touching any real ingested content that happens to be in review.
+clear-signal-inbox:
+	@docker compose exec -T postgres psql -U postgres -d rooteditorial -c \
+		"DELETE FROM posts WHERE is_seed = true AND (status = 'in_review' OR duplicate_of_id IN (SELECT id FROM posts WHERE is_seed = true AND status = 'in_review'));"
+
 # Audit seed data against the Root Signal data contract.
 # Prints gap report + writes machine-readable data/audit-seed.out.json.
 # Exits non-zero if any gap category regressed vs the committed baseline

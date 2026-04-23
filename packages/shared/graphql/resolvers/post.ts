@@ -110,6 +110,30 @@ export const postResolvers = {
         offset: args.offset ?? null,
       });
     },
+
+    signalInbox: async (
+      _parent: unknown,
+      args: { limit?: number; offset?: number },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{
+        posts: Array<Record<string, unknown> & { review_flags?: string[] }>;
+        total_count: number;
+      }>("Posts", "list_in_review", {
+        limit: args.limit ?? null,
+        offset: args.offset ?? null,
+      });
+      return {
+        rows: (result.posts ?? []).map((row) => {
+          const { review_flags, ...post } = row;
+          return {
+            post,
+            reviewFlags: review_flags ?? [],
+          };
+        }),
+        totalCount: result.total_count ?? 0,
+      };
+    },
   },
 
   Mutation: {
