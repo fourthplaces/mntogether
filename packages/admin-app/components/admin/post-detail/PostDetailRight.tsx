@@ -17,6 +17,7 @@ import { ItemsRow } from "./rows/ItemsRow";
 import { PersonRow } from "./rows/PersonRow";
 import { SourceAttributionRow } from "./rows/SourceAttributionRow";
 import { StatusRow } from "./rows/StatusRow";
+import { SourcesPanel, type AdminPostSource } from "./SourcesPanel";
 
 type Note = {
   id: string;
@@ -47,6 +48,7 @@ type RightPost = {
   sourceAttribution?: { sourceName?: string | null; attribution?: string | null } | null;
   postStatus?: { state?: string | null; verified?: string | null } | null;
   tags?: Array<{ id: string; kind: string; value: string; displayName?: string | null; color?: string | null }> | null;
+  sources?: AdminPostSource[] | null;
   revisionOfPostId?: string | null;
   translationOfId?: string | null;
   duplicateOfId?: string | null;
@@ -64,6 +66,7 @@ type Actions = {
   upsertItems: (items: Array<{ name: string; detail?: string | null }>) => Promise<unknown>;
   upsertSourceAttr: (input: { sourceName: string | null; attribution: string | null }) => Promise<unknown>;
   upsertStatus: (input: { state: string | null; verified: string | null }) => Promise<unknown>;
+  setPrimarySource: (postSourceId: string) => Promise<unknown>;
 };
 
 type TagsData = {
@@ -136,6 +139,12 @@ export function PostDetailRight({
           <StatusRow postStatus={post.postStatus ?? null} onSave={actions.upsertStatus} />
         </dl>
       </section>
+
+      {/* Sources — every post_sources row, primary distinguished */}
+      <SourcesPanel
+        sources={post.sources ?? []}
+        onSetPrimary={actions.setPrimarySource}
+      />
 
       {/* Tags */}
       <TagsSection

@@ -24,6 +24,7 @@ import type {
 import type { BroadsheetPost, BroadsheetContact } from '@/gql/graphql';
 import { computeRenderHints } from './render-hints';
 import { formatPostDate } from './dates';
+import { stripCitations } from './citations';
 
 /**
  * Shape of the per-template config needed by preparePost / enforceBodyLimits.
@@ -91,10 +92,14 @@ export function preparePost(
   // Body: use weight-specific text from Root Signal if available, else fall back to description.
   // Anchor posts in stacked layouts need more body text to fill their wider column,
   // so we bump them up one tier (medium → heavy).
-  const rawBody = (isAnchor
+  const rawBodyWithCitations = (isAnchor
     ? (gqlPost.bodyHeavy ?? selectWeightBody(gqlPost, postTemplate))
     : selectWeightBody(gqlPost, postTemplate)
   ) ?? gqlPost.bodyRaw;
+  // Broadsheet tiles render short snippets — [signal:UUID] superscripts
+  // are noise at that scale. Detail pages render citations inline via
+  // CitationMarkdown; here we strip them so card copy stays clean.
+  const rawBody = rawBodyWithCitations ? stripCitations(rawBodyWithCitations) : rawBodyWithCitations;
   // Anchors use bodyHeavy, so enforce against feature-level limits (not the template's own)
   const { html: bodyHtml, compact } = enforceBodyLimits(
     rawBody,
