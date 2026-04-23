@@ -101,34 +101,9 @@
       "color": "#e11d48"
     },
     {
-      "value": "restaurant",
-      "displayName": "Restaurant",
-      "color": "#fb923c"
-    },
-    {
-      "value": "brooklyn-center",
-      "displayName": "Brooklyn Center",
-      "color": "#94a3b8"
-    },
-    {
-      "value": "phillips",
-      "displayName": "Phillips",
-      "color": "#94a3b8"
-    },
-    {
-      "value": "north-minneapolis",
-      "displayName": "North Minneapolis",
-      "color": "#94a3b8"
-    },
-    {
-      "value": "lake-street",
-      "displayName": "Lake Street",
-      "color": "#94a3b8"
-    },
-    {
-      "value": "south-metro",
-      "displayName": "South Metro",
-      "color": "#94a3b8"
+      "value": "public-works",
+      "displayName": "Public Works",
+      "color": "#0891b2"
     }
   ],
   "serviceArea": [
@@ -487,16 +462,149 @@
   ],
   "safety": [
     {
-      "value": "no_id_required",
-      "displayName": "No ID Required"
+      "value": "no-id-required",
+      "displayName": "No ID Required",
+      "description": "No identification is asked for or required to receive the service."
     },
     {
-      "value": "ice_safe",
-      "displayName": "ICE Safe"
+      "value": "immigration-status-safe",
+      "displayName": "Immigration Status Safe",
+      "description": "Will not ask about, record, or report immigration status."
     },
     {
-      "value": "know_your_rights",
-      "displayName": "Know Your Rights"
+      "value": "ice-safe",
+      "displayName": "ICE Safe",
+      "description": "Sanctuary posture; will not voluntarily cooperate with ICE."
+    },
+    {
+      "value": "anonymous-access",
+      "displayName": "Anonymous Access",
+      "description": "No name or identifying information required."
+    },
+    {
+      "value": "no-background-check",
+      "displayName": "No Background Check",
+      "description": "No criminal-record or background check required."
+    },
+    {
+      "value": "free-service",
+      "displayName": "Free Service",
+      "description": "Genuinely no-cost."
+    },
+    {
+      "value": "sliding-scale",
+      "displayName": "Sliding Scale",
+      "description": "Fees adjusted based on ability to pay; no one turned away."
+    },
+    {
+      "value": "no-insurance-required",
+      "displayName": "No Insurance Required",
+      "description": "Services provided regardless of insurance status."
+    },
+    {
+      "value": "confidential",
+      "displayName": "Confidential",
+      "description": "Visits and information kept confidential without explicit consent to share."
+    },
+    {
+      "value": "trauma-informed",
+      "displayName": "Trauma-Informed",
+      "description": "Staff trained in trauma-informed care."
+    },
+    {
+      "value": "walk-in",
+      "displayName": "Walk-In",
+      "description": "No appointment required; drop in during listed hours."
+    },
+    {
+      "value": "no-referral-required",
+      "displayName": "No Referral Required",
+      "description": "No referral needed to be seen."
+    },
+    {
+      "value": "same-day-service",
+      "displayName": "Same-Day Service",
+      "description": "Seen the same day you arrive."
+    },
+    {
+      "value": "women-only",
+      "displayName": "Women-Only",
+      "description": "Space or service restricted to women."
+    },
+    {
+      "value": "lgbtq-affirming",
+      "displayName": "LGBTQ+ Affirming",
+      "description": "Staff trained, intake forms inclusive."
+    },
+    {
+      "value": "trans-affirming",
+      "displayName": "Trans-Affirming",
+      "description": "Correct name/pronoun use; no gatekeeping."
+    },
+    {
+      "value": "indigenous-led",
+      "displayName": "Indigenous-Led",
+      "description": "Led by and for Indigenous community."
+    },
+    {
+      "value": "peer-led",
+      "displayName": "Peer-Led",
+      "description": "Delivered by people with lived experience of the issue."
+    },
+    {
+      "value": "survivor-centered",
+      "displayName": "Survivor-Centered",
+      "description": "Designed with and for survivors of DV, SA, or trafficking."
+    },
+    {
+      "value": "secular",
+      "displayName": "Secular",
+      "description": "No religious component, requirement, or expectation."
+    },
+    {
+      "value": "disability-accessible",
+      "displayName": "Disability-Accessible",
+      "description": "ADA-compliant physical access."
+    },
+    {
+      "value": "asl-available",
+      "displayName": "ASL Available",
+      "description": "American Sign Language interpretation available."
+    },
+    {
+      "value": "sensory-friendly",
+      "displayName": "Sensory-Friendly",
+      "description": "Environment designed for sensory-processing needs."
+    },
+    {
+      "value": "language-accessible",
+      "displayName": "Language-Accessible",
+      "description": "Interpreters available or multilingual staff on duty."
+    },
+    {
+      "value": "harm-reduction",
+      "displayName": "Harm Reduction",
+      "description": "Non-judgmental regardless of substance use."
+    },
+    {
+      "value": "minors-without-parent",
+      "displayName": "Minors Without Parent",
+      "description": "Minors can access without parental presence."
+    },
+    {
+      "value": "no-law-enforcement",
+      "displayName": "No Law Enforcement",
+      "description": "Does not involve police as policy."
+    },
+    {
+      "value": "childcare-provided",
+      "displayName": "Childcare Provided",
+      "description": "Free on-site childcare during the service."
+    },
+    {
+      "value": "pets-welcome",
+      "displayName": "Pets Welcome",
+      "description": "Pets or service animals permitted."
     }
   ]
 }

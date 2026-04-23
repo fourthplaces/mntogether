@@ -2,7 +2,9 @@
 
 **Date:** 2026-02-24
 **Author:** Tim (design/editorial lead) + Claude
-**Status:** Living document — update as decisions are made
+**Status:** Historical — the pivot rationale as it stood in Feb 2026.
+
+> **Heads up.** This document captures the *why* of the pivot from the monolith to Root Editorial + Root Signal. It is kept for the historical record. **For the current data model and current system shape, read [`DATA_MODEL.md`](DATA_MODEL.md).** Enumerations below ("what Editorial does", "what tables we keep", etc.) reflect the Feb 2026 intent, not what actually shipped.
 
 ---
 

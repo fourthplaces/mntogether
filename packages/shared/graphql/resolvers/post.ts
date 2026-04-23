@@ -6,7 +6,6 @@ export const postResolvers = {
       _parent: unknown,
       args: {
         postType?: string;
-        category?: string;
         limit?: number;
         offset?: number;
         zipCode?: string;
@@ -16,7 +15,6 @@ export const postResolvers = {
     ) => {
       return ctx.server.callService("Posts", "public_list", {
         post_type: args.postType,
-        category: args.category,
         limit: args.limit,
         offset: args.offset,
         zip_code: args.zipCode,
@@ -330,7 +328,7 @@ export const postResolvers = {
           postType?: string;
           weight?: string;
           priority?: number;
-          urgency?: string;
+          isUrgent?: boolean;
           location?: string;
           organizationId?: string;
         };
@@ -343,7 +341,7 @@ export const postResolvers = {
         post_type: args.input.postType,
         weight: args.input.weight,
         priority: args.input.priority,
-        urgency: args.input.urgency,
+        is_urgent: args.input.isUrgent,
         location: args.input.location,
         organization_id: args.input.organizationId,
       });
@@ -359,10 +357,8 @@ export const postResolvers = {
           bodyRaw?: string;
           bodyAst?: string;
           postType?: string;
-          category?: string;
           weight?: string;
           priority?: number;
-          urgency?: string;
           isUrgent?: boolean;
           pencilMark?: string;
           location?: string;
@@ -378,10 +374,8 @@ export const postResolvers = {
         body_raw: args.input.bodyRaw,
         body_ast: args.input.bodyAst ? JSON.parse(args.input.bodyAst) : undefined,
         post_type: args.input.postType,
-        category: args.input.category,
         weight: args.input.weight,
         priority: args.input.priority,
-        urgency: args.input.urgency,
         is_urgent: args.input.isUrgent,
         pencil_mark: args.input.pencilMark,
         location: args.input.location,

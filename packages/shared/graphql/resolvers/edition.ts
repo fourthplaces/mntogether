@@ -126,7 +126,6 @@ interface PublicBroadsheetPostData {
   description: string;
   postType: string;
   weight: string;
-  urgency?: string;
   location?: string;
   sourceUrl?: string;
   organizationName?: string;

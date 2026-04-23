@@ -77,9 +77,9 @@ export function preparePost(
 
   // Tags: extract tag values as string[] for the broadsheet type system
   const tagValues = gqlPost.tags.map((t) => t.value);
-  // Check urgent notes OR urgency field → add 'urgent' tag
+  // Check urgent notes or is_urgent flag → add 'urgent' tag
   if (
-    (gqlPost.urgentNotes.length > 0 || gqlPost.urgency === 'urgent') &&
+    (gqlPost.urgentNotes.length > 0 || gqlPost.isUrgent) &&
     !tagValues.includes('urgent')
   ) {
     tagValues.push('urgent');
@@ -158,10 +158,10 @@ export function preparePost(
     weight: gqlPost.weight as PostWeight,
     priority: 0, // Not exposed in public API — default to 0
     // Modifiers — overlays on top of type-driven visual variants
-    urgent: ((gqlPost as any).isUrgent ?? gqlPost.urgency === 'urgent') || undefined,
+    urgent: gqlPost.isUrgent || undefined,
     // Pencil marks are hidden on dark backgrounds (urgent, action CTA) per style guide.
     // Clear at the data layer so components don't need to check individually.
-    pencilMark: ((gqlPost as any).isUrgent || gqlPost.urgency === 'urgent')
+    pencilMark: gqlPost.isUrgent
       ? undefined
       : ((gqlPost as any).pencilMark ?? undefined),
 

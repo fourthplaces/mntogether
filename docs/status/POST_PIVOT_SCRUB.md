@@ -194,25 +194,25 @@ After F completes: ingest-endpoint build ([TODO §1.1](../TODO.md)) and Addendum
 
 ## G. Checklist
 
-- [ ] A.1 `Post.category` removed
-- [ ] A.2 `Post.urgency` removed
-- [ ] A.3 `Post.sourceUrl` resolved via `post_sources`
-- [ ] A.4 Other dead Post fields (audit pass)
-- [ ] A.5 Mutation input types aligned
-- [ ] B.1 `organizations.json` scrubbed
-- [ ] B.2 `posts.json` topic slugs cleaned
-- [ ] B.3 `widgets.json` aligned
-- [ ] C.1 Dead `tag_kinds` rows dropped (migration)
-- [ ] C.2 `tags.kind` CHECK constraint tightened
-- [ ] C.3 Safety slug normalisation
-- [ ] C.4 Expanded safety vocabulary seeded
-- [ ] D.1 Posts-table columns spot-checked
-- [ ] E.1 `DATABASE_SCHEMA.md` superseded or rewritten
-- [ ] E.2 `ROOT_EDITORIAL_PIVOT.md` banner added
-- [ ] E.3 Superseded Root Signal specs cleaned or deleted
-- [ ] E.4 `SIMPLIFIED_SCHEMA.md` resolved
-- [ ] E.5 `EMBEDDING_FEATURES_REFERENCE.md` reviewed
-- [ ] E.6 `data/README.md` reviewed
+- [x] A.1 `Post.category` removed
+- [x] A.2 `Post.urgency` removed
+- [ ] A.3 `Post.sourceUrl` resolved via `post_sources` — deferred, bundled with the Addendum 01 citations build (Worktree 6)
+- [x] A.4 Other dead Post fields (audit pass) — removed `PublicFilters.categories` + `FilterOption` as adjacent dead cruft; no `tldr` / `custom_*` fields found
+- [x] A.5 Mutation input types aligned
+- [x] B.1 `organizations.json` scrubbed
+- [x] B.2 `posts.json` topic slugs cleaned
+- [x] B.3 `widgets.json` aligned — widget_types already match the migration 217 CHECK (`section_sep`, `pull_quote`, `photo`, `resource_bar`, `number`)
+- [x] C.1 Dead `tag_kinds` rows dropped (migration `000237`). Platform kept as the `organization_links` UI lookup table — see DATA_MODEL §5.3.
+- [x] C.2 `tags.kind` CHECK constraint tightened — set is `topic | service_area | safety | neighborhood | platform`
+- [x] C.3 Safety slug normalisation — underscore→hyphen, `know_your_rights` dropped
+- [x] C.4 Expanded safety vocabulary seeded — 29 slugs in both the migration and `data/tags.json`
+- [x] D.1 Posts-table columns spot-checked — `Post` Rust struct matches the post-pivot design
+- [x] E.1 `DATABASE_SCHEMA.md` superseded, points at DATA_MODEL.md
+- [x] E.2 `ROOT_EDITORIAL_PIVOT.md` banner added
+- [ ] E.3 Superseded Root Signal specs cleaned or deleted — skipped this pass; banners already point at `ROOT_SIGNAL_DATA_CONTRACT.md`. Revisit when the handoff docs settle.
+- [x] E.4 `SIMPLIFIED_SCHEMA.md` superseded
+- [x] E.5 `EMBEDDING_FEATURES_REFERENCE.md` reviewed — still an accurate historical catalogue, no edits
+- [ ] E.6 `data/README.md` reviewed — not opened this pass (seed shape changes were local to the JSONs, not to the loader conventions)
 
 ---
 

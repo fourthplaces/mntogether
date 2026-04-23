@@ -8,7 +8,6 @@ type Query {
   # Posts (public)
   publicPosts(
     postType: String
-    category: String
     limit: Int
     offset: Int
     zipCode: String
@@ -204,14 +203,7 @@ type Mutation {
 }
 
 type PublicFilters {
-  categories: [FilterOption!]!
   postTypes: [PostTypeOption!]!
-}
-
-type FilterOption {
-  value: String!
-  displayName: String!
-  count: Int!
 }
 
 type PostTypeOption {
@@ -231,8 +223,6 @@ type Post {
   postType: PostType
   weight: Weight
   priority: Int
-  category: String
-  urgency: String
   isUrgent: Boolean
   pencilMark: String
   location: String
@@ -314,7 +304,6 @@ type PublicPost {
   location: String
   sourceUrl: String
   postType: PostType!
-  category: String!
   createdAt: String!
   publishedAt: String
   distanceMiles: Float
@@ -686,7 +675,6 @@ type BroadsheetPost {
   bodyRaw: String!
   postType: String!
   weight: String!
-  urgency: String
   isUrgent: Boolean
   pencilMark: String
   location: String
@@ -782,7 +770,7 @@ input CreatePostInput {
   postType: String
   weight: String
   priority: Int
-  urgency: String
+  isUrgent: Boolean
   location: String
   organizationId: ID
 }
@@ -792,10 +780,8 @@ input UpdatePostInput {
   bodyRaw: String
   bodyAst: String
   postType: String
-  category: String
   weight: String
   priority: Int
-  urgency: String
   isUrgent: Boolean
   pencilMark: String
   location: String

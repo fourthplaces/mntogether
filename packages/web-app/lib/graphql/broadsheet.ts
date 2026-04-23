@@ -57,7 +57,6 @@ export const EditionPreviewQuery = graphql(`
             bodyRaw
             postType
             weight
-            urgency
             isUrgent
             pencilMark
             location
@@ -180,7 +179,6 @@ export const PublicBroadsheetQuery = graphql(`
             bodyRaw
             postType
             weight
-            urgency
             isUrgent
             pencilMark
             location
