@@ -1,16 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "urql";
-import { EditorTopBar } from "@/components/admin/EditorTopBar";
-import { PostEditorForm } from "@/components/admin/PostEditorForm";
 import { CreatePostMutation } from "@/lib/graphql/posts";
-import {
-  type PostFormValues,
-  DEFAULT_VALUES,
-  validatePostForm,
-} from "@/lib/post-form-constants";
 
 const mutationContext = {
   additionalTypenames: ["Post", "PostConnection", "PostStats"],
@@ -18,79 +11,54 @@ const mutationContext = {
 
 export default function NewPostPage() {
   const router = useRouter();
+  const [, createPost] = useMutation(CreatePostMutation);
+  const started = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Form state
-  const [values, setValues] = useState<PostFormValues>(DEFAULT_VALUES);
-  const [dirty, setDirty] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Mutation
-  const [{ fetching: saving }, createPost] = useMutation(CreatePostMutation);
-
-  const handleChange = useCallback((newValues: PostFormValues) => {
-    setValues(newValues);
-    setDirty(true);
-    setErrors({});
-  }, []);
-
-  const handleSave = useCallback(async () => {
-    const validationErrors = validatePostForm(values);
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-
-    const result = await createPost(
-      {
-        input: {
-          title: values.title.trim(),
-          bodyRaw: values.bodyRaw.trim(),
-          postType: values.postType,
-          weight: values.weight,
-          priority: values.priority,
-          isUrgent: values.isUrgent || undefined,
-          location: values.location.trim() || undefined,
-          organizationId: values.organizationId || undefined,
-        },
-      },
-      mutationContext
-    );
-
-    if (result.data?.createPost?.id) {
-      setDirty(false);
-      router.push(`/admin/posts/${result.data.createPost.id}`);
-    }
-  }, [values, createPost, router]);
-
-  // Warn on navigation with unsaved changes
   useEffect(() => {
-    const handler = (e: BeforeUnloadEvent) => {
-      if (dirty) {
-        e.preventDefault();
+    if (started.current) return;
+    started.current = true;
+    (async () => {
+      const result = await createPost(
+        {
+          input: {
+            title: "Untitled",
+            bodyRaw: "",
+            postType: "story",
+            weight: "medium",
+            priority: 0,
+          },
+        },
+        mutationContext
+      );
+      const id = result.data?.createPost?.id;
+      if (id) {
+        router.replace(`/admin/posts/${id}/edit`);
+      } else {
+        setError(result.error?.message ?? "Could not create draft");
       }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
+    })();
+  }, [createPost, router]);
 
   return (
-    <>
-      <EditorTopBar
-        title={values.title || "New Post"}
-        backHref="/admin/posts"
-        backLabel="Posts"
-        onSave={handleSave}
-        saving={saving}
-        dirty={dirty}
-      />
-      <div className="flex-1 overflow-y-auto">
-        <PostEditorForm
-          values={values}
-          onChange={handleChange}
-          errors={errors}
-          disabled={saving}
-        />
-      </div>
-    </>
+    <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
+      {error ? (
+        <div className="space-y-2 text-center">
+          <p className="text-destructive">Couldn&rsquo;t start a new post: {error}</p>
+          <button
+            className="underline"
+            onClick={() => {
+              started.current = false;
+              setError(null);
+              router.refresh();
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      ) : (
+        "Creating draft\u2026"
+      )}
+    </div>
   );
 }
