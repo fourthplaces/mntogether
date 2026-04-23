@@ -155,6 +155,11 @@ pub struct ApproveEditionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct UnpublishEditionRequest {
+    pub id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct BatchApproveEditionsRequest {
     pub ids: Vec<Uuid>,
 }
@@ -373,6 +378,16 @@ pub struct ReorderRowsResult {
 pub struct BatchEditionsResult {
     pub succeeded: i32,
     pub failed: i32,
+    /// One entry per skipped edition — carries the id and a human-readable
+    /// reason (e.g. "no populated slots"). Empty when every edition in the
+    /// request succeeded.
+    pub errors: Vec<BatchEditionErrorResult>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BatchEditionErrorResult {
+    pub edition_id: Uuid,
+    pub message: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -1306,9 +1321,8 @@ async fn batch_approve_editions(
     _user: AdminUser,
     Json(req): Json<BatchApproveEditionsRequest>,
 ) -> ApiResult<Json<BatchEditionsResult>> {
-    let (succeeded, failed) =
-        activities::batch_approve_editions(&req.ids, &state.deps).await?;
-    Ok(Json(BatchEditionsResult { succeeded, failed }))
+    let result = activities::batch_approve_editions(&req.ids, &state.deps).await?;
+    Ok(Json(batch_to_result(result)))
 }
 
 async fn batch_publish_editions(
@@ -1316,9 +1330,32 @@ async fn batch_publish_editions(
     _user: AdminUser,
     Json(req): Json<BatchPublishEditionsRequest>,
 ) -> ApiResult<Json<BatchEditionsResult>> {
-    let (succeeded, failed) =
-        activities::batch_publish_editions(&req.ids, &state.deps).await?;
-    Ok(Json(BatchEditionsResult { succeeded, failed }))
+    let result = activities::batch_publish_editions(&req.ids, &state.deps).await?;
+    Ok(Json(batch_to_result(result)))
+}
+
+async fn unpublish_edition(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<UnpublishEditionRequest>,
+) -> ApiResult<Json<EditionResult>> {
+    let edition = activities::unpublish_edition(req.id, &state.deps).await?;
+    Ok(Json(edition_to_result(&edition)))
+}
+
+fn batch_to_result(r: activities::BatchLifecycleResult) -> BatchEditionsResult {
+    BatchEditionsResult {
+        succeeded: r.succeeded,
+        failed: r.failed,
+        errors: r
+            .errors
+            .into_iter()
+            .map(|e| BatchEditionErrorResult {
+                edition_id: e.edition_id,
+                message: e.message,
+            })
+            .collect(),
+    }
 }
 
 async fn edition_kanban_stats(
@@ -1808,6 +1845,7 @@ pub fn router() -> Router<AppState> {
         .route("/Editions/create_edition", post(create_edition))
         .route("/Editions/generate_edition", post(generate_edition))
         .route("/Editions/publish_edition", post(publish_edition))
+        .route("/Editions/unpublish_edition", post(unpublish_edition))
         .route("/Editions/archive_edition", post(archive_edition))
         .route("/Editions/batch_generate", post(batch_generate))
         .route("/Editions/row_templates", post(row_templates))

@@ -179,6 +179,7 @@ type Mutation {
   reviewEdition(id: ID!): Edition!
   approveEdition(id: ID!): Edition!
   publishEdition(id: ID!): Edition!
+  unpublishEdition(id: ID!): Edition!
   archiveEdition(id: ID!): Edition!
   batchGenerateEditions(periodStart: String!, periodEnd: String!): BatchGenerateEditionsResult!
   batchApproveEditions(ids: [ID!]!): BatchEditionsResult!
@@ -695,6 +696,12 @@ type BatchGenerateEditionsResult {
 type BatchEditionsResult {
   succeeded: Int!
   failed: Int!
+  errors: [BatchEditionError!]!
+}
+
+type BatchEditionError {
+  editionId: ID!
+  message: String!
 }
 
 type EditionKanbanStats {

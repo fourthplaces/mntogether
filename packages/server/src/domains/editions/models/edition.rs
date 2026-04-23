@@ -205,13 +205,38 @@ impl Edition {
         .map_err(Into::into)
     }
 
-    /// Publish an approved edition: set status to 'published' and record the timestamp.
+    /// Publish an approved edition. `published_at` is only stamped the first
+    /// time — re-publishes after an unpublish preserve the original timestamp
+    /// (semantics: "when did this edition first go live"). `updated_at` bumps
+    /// every call so row-level history still moves forward.
     pub async fn publish(id: Uuid, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
             UPDATE editions
-            SET status = 'published', published_at = NOW(), updated_at = NOW()
+            SET status = 'published',
+                published_at = COALESCE(published_at, NOW()),
+                updated_at = NOW()
             WHERE id = $1 AND status IN ('approved', 'draft')
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Move a published edition back to `approved`. `published_at` stays so
+    /// the history of first-publication is preserved for audit and for the
+    /// COALESCE guard in `publish`. Public read-through of county editions
+    /// keys on `status = 'published'`, so the public site falls off the
+    /// unpublished edition immediately.
+    pub async fn unpublish(id: Uuid, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE editions
+            SET status = 'approved', updated_at = NOW()
+            WHERE id = $1 AND status = 'published'
             RETURNING *
             "#,
         )
@@ -233,38 +258,6 @@ impl Edition {
         )
         .bind(id)
         .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Batch approve multiple in_review editions at once.
-    pub async fn batch_approve(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            UPDATE editions
-            SET status = 'approved', updated_at = NOW()
-            WHERE id = ANY($1) AND status = 'in_review'
-            RETURNING *
-            "#,
-        )
-        .bind(ids)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Batch publish multiple approved editions at once.
-    pub async fn batch_publish(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            UPDATE editions
-            SET status = 'published', published_at = NOW(), updated_at = NOW()
-            WHERE id = ANY($1) AND status = 'approved'
-            RETURNING *
-            "#,
-        )
-        .bind(ids)
-        .fetch_all(pool)
         .await
         .map_err(Into::into)
     }

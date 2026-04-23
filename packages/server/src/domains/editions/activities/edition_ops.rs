@@ -1,7 +1,8 @@
-//! Edition operations — create, generate, publish, archive editions.
+//! Edition operations — create, generate, publish, unpublish, archive editions.
 
 use anyhow::{anyhow, Result};
 use chrono::NaiveDate;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::domains::editions::data::types::BatchGenerateResult;
@@ -13,6 +14,27 @@ use crate::domains::editions::models::edition_slot::EditionSlot;
 use crate::kernel::ServerDeps;
 
 use super::layout_engine;
+
+/// One item in a batch lifecycle operation's error list. Carries the edition
+/// id that failed and a human-readable reason (e.g. "Cannot publish an
+/// edition with no populated slots."). Callers surface this directly in the
+/// editor UI so a batch publish that skips empty editions tells the editor
+/// *which* ones and *why*.
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchEditionError {
+    pub edition_id: Uuid,
+    pub message: String,
+}
+
+/// Aggregated result from a batch lifecycle operation (approve, publish).
+/// `succeeded` + `failed` == input ids. `errors` has one entry per failure
+/// so the UI can render per-edition reasons.
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchLifecycleResult {
+    pub succeeded: i32,
+    pub failed: i32,
+    pub errors: Vec<BatchEditionError>,
+}
 
 /// Create a new draft edition for a county and period.
 pub async fn create_edition(
@@ -275,6 +297,27 @@ pub async fn publish_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edit
     Edition::publish(edition_id, pool).await
 }
 
+/// Move a published edition back to `approved` so an editor can revise it.
+/// `published_at` is preserved (first-publication timestamp is load-bearing
+/// audit state); a subsequent `publish_edition` call uses COALESCE to keep
+/// it, so publish → unpublish → publish is a no-op on that field.
+pub async fn unpublish_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edition> {
+    let pool = &deps.db_pool;
+
+    let edition = Edition::find_by_id(edition_id, pool)
+        .await?
+        .ok_or_else(|| anyhow!("Edition not found: {}", edition_id))?;
+
+    if edition.status != "published" {
+        return Err(anyhow!(
+            "Cannot unpublish a {} edition — only published editions can be unpublished",
+            edition.status
+        ));
+    }
+
+    Edition::unpublish(edition_id, pool).await
+}
+
 /// Archive an edition.
 pub async fn archive_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edition> {
     let pool = &deps.db_pool;
@@ -286,28 +329,48 @@ pub async fn archive_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edit
     Edition::archive(edition_id, pool).await
 }
 
-/// Batch approve multiple in_review editions.
+/// Batch approve multiple in_review editions. Iterates per-id through the
+/// single-op activity so the population gate fires per edition; the model
+/// layer has no corresponding raw-SQL batch method by design. Returns
+/// per-id reasons for any skipped editions.
 pub async fn batch_approve_editions(
     ids: &[Uuid],
     deps: &ServerDeps,
-) -> Result<(i32, i32)> {
-    let pool = &deps.db_pool;
-    let total = ids.len() as i32;
-    let approved = Edition::batch_approve(ids, pool).await?;
-    let succeeded = approved.len() as i32;
-    Ok((succeeded, total - succeeded))
+) -> Result<BatchLifecycleResult> {
+    let mut succeeded = 0i32;
+    let mut errors = Vec::new();
+    for &id in ids {
+        match approve_edition(id, deps).await {
+            Ok(_) => succeeded += 1,
+            Err(e) => errors.push(BatchEditionError {
+                edition_id: id,
+                message: e.to_string(),
+            }),
+        }
+    }
+    Ok(BatchLifecycleResult { succeeded, failed: errors.len() as i32, errors })
 }
 
-/// Batch publish multiple approved editions.
+/// Batch publish multiple approved editions. Gated per-id like
+/// `batch_approve_editions` — this is the fix that prevents the empty-edition
+/// publish bug (raw `UPDATE ... WHERE id = ANY($1)` used to bypass the
+/// population check).
 pub async fn batch_publish_editions(
     ids: &[Uuid],
     deps: &ServerDeps,
-) -> Result<(i32, i32)> {
-    let pool = &deps.db_pool;
-    let total = ids.len() as i32;
-    let published = Edition::batch_publish(ids, pool).await?;
-    let succeeded = published.len() as i32;
-    Ok((succeeded, total - succeeded))
+) -> Result<BatchLifecycleResult> {
+    let mut succeeded = 0i32;
+    let mut errors = Vec::new();
+    for &id in ids {
+        match publish_edition(id, deps).await {
+            Ok(_) => succeeded += 1,
+            Err(e) => errors.push(BatchEditionError {
+                edition_id: id,
+                message: e.to_string(),
+            }),
+        }
+    }
+    Ok(BatchLifecycleResult { succeeded, failed: errors.len() as i32, errors })
 }
 
 /// Batch generate editions for ALL 87 counties for a given date range.

@@ -698,6 +698,16 @@ export const editionResolvers = {
       });
     },
 
+    unpublishEdition: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Editions", "unpublish_edition", {
+        id: args.id,
+      });
+    },
+
     archiveEdition: async (
       _parent: unknown,
       args: { id: string },
